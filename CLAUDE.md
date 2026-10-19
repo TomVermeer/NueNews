@@ -59,3 +59,17 @@ Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), 
 - Web tests use `src/test/fakeApi.ts`, a recording fake of the typed client, mocked per test file with `vi.mock('../api/client', ...)`. Mount with `mountApp` (Pinia, Query, router installed). `grid-layout-plus` is mocked in page tests because happy-dom cannot measure layout, so drag and resize are not unit-tested; check them in a real browser.
 - Vitest gotcha: a `beforeEach(() => mock.mockReset())` arrow that returns the mock makes Vitest call it as teardown. Use braces.
 - `grid-layout-plus` ignores drags that start on `<a>`/`<button>` unless `drag-ignore-from` is set; the drag handle is a button.
+
+## Where we left off
+
+Update this section when you finish a chunk of work, so the next session starts here.
+
+Done: monorepo and tooling, database, RSS/Atom and YouTube providers, weather, scheduler, the dashboard/widget API, and the dashboard UI (grid, edit mode, add/settings panel).
+
+Next, in the order the owner chose:
+
+1. **RoyalRoad** provider and widget, URL-list mode first. It uses the per-fiction feed at `/fiction/syndication/{id}` (not yet checked against the live site) and needs an "unread chapters" notion. A "follows" mode would need a logged-in session and is undecided; see the open questions in [docs/DESIGN.md](docs/DESIGN.md).
+2. **Playwright end-to-end tests** for drag, resize, save and add-widget, wired into CI (CI currently runs only lint, format check, typecheck, tests and build).
+3. **Hosting and real authentication** (low-cost, easy to maintain; not chosen yet), then sharing and Postgres.
+
+Known gaps: a **Reddit** preset needs OAuth (unauthenticated RSS gets `429`); import/export of dashboards is not built; the repo has no GitHub remote yet.
