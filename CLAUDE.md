@@ -60,6 +60,9 @@ Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), 
 - Vitest gotcha: a `beforeEach(() => mock.mockReset())` arrow that returns the mock makes Vitest call it as teardown. Use braces.
 - `grid-layout-plus` ignores drags that start on `<a>`/`<button>` unless `drag-ignore-from` is set; the drag handle is a button.
 
+## Style Guide
+See [docs/typescript-style.md](docs/typescript-style.md) for typescript coding conventions.
+
 ## Where we left off
 
 Update this section when you finish a chunk of work, so the next session starts here.
