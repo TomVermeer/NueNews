@@ -2,7 +2,7 @@
 
 A personal dashboard that pulls feeds from other sites (RSS/Atom, Reddit, YouTube, RoyalRoad, weather) into a customizable grid of widgets. The first version is for a single user, but the design keeps the door open for multiple users and shareable dashboards.
 
-Status: the backend is feature-complete for v1 except RoyalRoad: database, RSS/Atom and YouTube providers, weather, scheduler and the dashboard/widget API. The web app is still a placeholder shell (the dashboard grid is next). The full plan lives in [docs/DESIGN.md](docs/DESIGN.md).
+Status: usable. You can create dashboards, add feed, YouTube and weather widgets, arrange them by dragging and resizing, and read items that always link out to their source. RoyalRoad is not built yet. The full plan lives in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## How to run
 
@@ -72,6 +72,19 @@ Available widget types: `feed`, `youtube` and `weather`. Not built yet: the `roy
 
 An in-process loop ([apps/api/src/scheduler](apps/api/src/scheduler)) wakes up every minute and refreshes sources that are due and used by at least one widget. Sources on the same site are fetched one at a time and at most four sites run in parallel. A successful fetch schedules the next one after the source's interval (30 minutes by default). Failures back off exponentially (1 h, 2 h, 4 h, then every 6 h) and honour `Retry-After` hints. Only the newest 100 items per source are kept.
 
+## Web app
+
+Vue 3 single page app in [apps/web](apps/web). The dashboard is a 12 column grid ([grid-layout-plus](https://grid-layout-plus.netlify.app/)); each widget is a card with a small header and a scrolling body.
+
+- **Tabs** in the top bar are dashboards (`/d/:id` in the address bar). The `+` creates one; rename and delete appear in edit mode.
+- **Edit layout** turns on dragging (by the grip), resizing (bottom-right corner), per-widget settings and removal. Changes stay in a draft until **Save layout**, which sends everything in one request; **Cancel** throws the draft away. Widgets you add or reconfigure through the panel are saved immediately.
+- **Add widget** opens a side panel. Feed and YouTube addresses must be looked up first (the API canonicalizes them and finds feeds on web pages, so what is stored is always a working feed URL or channel ID). Weather uses a city search.
+- **Reading.** Titles, thumbnails and videos are plain links that open the original page in a new tab (`rel="noopener noreferrer"`); thumbnails are hotlinked without a referrer; nothing is embedded. Opening an item marks it read immediately, and optional unread dots show it.
+- **Data flow.** TanStack Query fetches and caches (widget data is re-read every 5 minutes, and the server refreshes feeds on its own schedule). Pinia holds only UI state (edit mode, which panel is open). Edit-mode drafts live in a small composable, [useLayoutDraft](apps/web/src/composables/useLayoutDraft.ts).
+- **Types** for every API response are inferred from the API routes ([api/types.ts](apps/web/src/api/types.ts)), so changing a route is a compile error in the UI.
+
+Gotcha worth knowing: grid-layout-plus ignores drags that start on a `<a>` or `<button>` by default, and the drag handle is a button, so the grid items set `drag-ignore-from` explicitly ([DashboardGrid.vue](apps/web/src/components/DashboardGrid.vue)).
+
 ## Stack
 
 - TypeScript everywhere, with a strict shared config ([tsconfig.base.json](tsconfig.base.json)).
@@ -140,14 +153,14 @@ Tests are written with each feature, not afterwards.
 
 - API: route tests via `app.request()` against an in-memory SQLite database, provider tests against saved real feed fixtures, and unit tests for the SSRF guard, sanitizer and scheduler (with fake timers). No test uses the real internet.
 - Shared: Zod schema tests for every widget config.
-- Web: component and store tests with Vue Test Utils, API mocks with MSW, and a few Playwright end-to-end tests for flows like adding a widget and saving a layout. Drag and drop is tested in the end-to-end layer only.
+- Web: Vue Test Utils with happy-dom. Components get a small fake of the typed API client ([test/fakeApi.ts](apps/web/src/test/fakeApi.ts)) that records requests, instead of MSW. The page test mounts the whole dashboard (tabs, widgets, edit mode, saving, the add panel) against that fake, with the grid library stubbed because happy-dom cannot measure layout. Dragging and resizing are verified in a real browser, and Playwright end-to-end tests are still planned.
 - Not planned yet: visual regression and snapshot tests.
 
-Current tests: 5 in `shared`, 280 in `api`, 2 in `web`.
+Current tests: 5 in `shared`, 280 in `api`, 119 in `web`.
 
 ## What's next
 
-See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the dashboard grid in the web app (tabs, widget cards, edit mode, add-widget panel), then RoyalRoad.
+See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: RoyalRoad (URL list first), Playwright end-to-end tests for dragging and resizing, then hosting and real authentication.
 
 ## Open questions
 

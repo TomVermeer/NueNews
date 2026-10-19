@@ -110,7 +110,7 @@ export function createTestApp(
       body: body === undefined ? undefined : JSON.stringify(body),
     })
     const text = await res.text()
-    return { status: res.status, body: text ? (JSON.parse(text) as any) : null } // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { status: res.status, body: text ? (JSON.parse(text) as any) : null }
   }
 
   return { app, db, deps, userId, fetch, call }

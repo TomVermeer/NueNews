@@ -13,8 +13,13 @@
   "dependencies": {
     "@nuenews/api": "workspace:*",
     "@nuenews/shared": "workspace:*",
+    "@tanstack/vue-query": "^5.104.5",
+    "grid-layout-plus": "^1.1.1",
     "hono": "^4.13.13",
-    "vue": "^3.5.44"
+    "lucide-vue-next": "^1.0.0",
+    "pinia": "^4.1.0",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -23,9 +23,14 @@ export default tseslint.config(
   },
   {
     rules: {
-      '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/consistent-type-imports': ['error', { disallowTypeAnnotations: false }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
+  },
+  {
+    // Test code: loose typing for fakes, and several tiny components per file are fine.
+    files: ['**/*.test.ts', '**/test/**/*.ts'],
+    rules: { '@typescript-eslint/no-explicit-any': 'off', 'vue/one-component-per-file': 'off' },
   },
   prettier,
 )

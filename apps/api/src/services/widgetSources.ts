@@ -14,7 +14,7 @@ export const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
   feed: { w: 4, h: 6 },
   royalroad: { w: 4, h: 5 },
   youtube: { w: 6, h: 5 },
-  weather: { w: 4, h: 3 },
+  weather: { w: 4, h: 4 },
 }
 
 export interface SourceRef {

@@ -16,3 +16,32 @@
 body {
   @apply bg-canvas text-ink antialiased;
 }
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-ink transition-colors hover:bg-line focus-visible:outline-2 focus-visible:outline-accent;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-canvas hover:bg-accent/85;
+  }
+  .btn-ghost {
+    @apply border-transparent text-ink-muted hover:text-ink;
+  }
+  .icon-btn {
+    @apply inline-flex size-7 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent;
+  }
+  .field {
+    @apply w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none;
+  }
+  .field-label {
+    @apply mb-1 block text-xs text-ink-muted;
+  }
+}
+
+/* grid-layout-plus: placeholder shown while dragging, and the resize handle. */
+.vgl-item--placeholder {
+  @apply rounded-xl bg-accent/15;
+}
+.vgl-item__resizer {
+  opacity: 0.6;
+}

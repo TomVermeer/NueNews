@@ -1,6 +1,6 @@
 # NueNews: plan and design
 
-Status: v0.4. Backend implemented except RoyalRoad (see README); web UI not started.
+Status: v0.5. Backend and dashboard UI implemented except RoyalRoad (see README).
 
 ## 1. Stack
 
