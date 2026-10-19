@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCsBjURrPoezykLs9EqgamOA"/>
+ <id>yt:channel:sBjURrPoezykLs9EqgamOA</id>
+ <yt:channelId>sBjURrPoezykLs9EqgamOA</yt:channelId>
+ <title>Example Dev Channel</title>
+ <link rel="alternate" href="https://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA"/>
+ <author>
+  <name>Example Dev Channel</name>
+  <uri>https://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA</uri>
+ </author>
+ <published>2017-04-07T18:17:23+00:00</published>
+ <entry>
+  <id>yt:video:abc123DEF45</id>
+  <yt:videoId>abc123DEF45</yt:videoId>
+  <yt:channelId>UCsBjURrPoezykLs9EqgamOA</yt:channelId>
+  <title>The runtime wars are over</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=abc123DEF45"/>
+  <author>
+   <name>Example Dev Channel</name>
+   <uri>https://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA</uri>
+  </author>
+  <published>2026-10-15T17:35:15+00:00</published>
+  <updated>2026-10-16T08:37:25+00:00</updated>
+  <media:group>
+   <media:title>The runtime wars are over</media:title>
+   <media:content url="https://www.youtube.com/v/abc123DEF45?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/abc123DEF45/hqdefault.jpg" width="480" height="360"/>
+   <media:description>Every JavaScript runtime compared.
+Second line of the description.</media:description>
+   <media:community>
+    <media:starRating count="1000" average="5.00" min="1" max="5"/>
+    <media:statistics views="50000"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:xyz789GHI01</id>
+  <yt:videoId>xyz789GHI01</yt:videoId>
+  <yt:channelId>UCsBjURrPoezykLs9EqgamOA</yt:channelId>
+  <title>Tailwind v4 in 100 seconds</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=xyz789GHI01"/>
+  <author><name>Example Dev Channel</name></author>
+  <published>2026-10-10T12:00:00+00:00</published>
+  <updated>2026-10-10T12:00:00+00:00</updated>
+  <media:group>
+   <media:title>Tailwind v4 in 100 seconds</media:title>
+   <media:thumbnail url="https://i2.ytimg.com/vi/xyz789GHI01/hqdefault.jpg" width="480" height="360"/>
+   <media:description></media:description>
+  </media:group>
+ </entry>
+</feed>

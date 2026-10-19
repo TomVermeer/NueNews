@@ -2,7 +2,7 @@
 
 A personal dashboard that pulls feeds from other sites (RSS/Atom, Reddit, YouTube, RoyalRoad, weather) into a customizable grid of widgets. The first version is for a single user, but the design keeps the door open for multiple users and shareable dashboards.
 
-Status: backend core is working: database, RSS/Atom provider, scheduler and the dashboard/widget API. The web app is still a placeholder shell (the dashboard grid is next). The full plan lives in [docs/DESIGN.md](docs/DESIGN.md).
+Status: the backend is feature-complete for v1 except RoyalRoad: database, RSS/Atom and YouTube providers, weather, scheduler and the dashboard/widget API. The web app is still a placeholder shell (the dashboard grid is next). The full plan lives in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## How to run
 
@@ -66,7 +66,7 @@ Everything lives under `/api/v1`. Errors always look like `{ "error": { "code": 
 | `POST /items/state`                               | Mark items `seen`, `read` or `unread`                                                            |
 | `POST /sources/resolve`                           | Turn what a user typed into a canonical source (feed autodiscovery, Reddit pages to their feed)  |
 
-Not built yet: weather data and geocoding, YouTube and RoyalRoad widgets (they are rejected with `widget_type_unavailable`), import/export.
+Available widget types: `feed`, `youtube` and `weather`. Not built yet: the `royalroad` widget (rejected with `widget_type_unavailable`) and import/export.
 
 ## Scheduler
 
@@ -119,6 +119,10 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 
 **Provider interface.** [apps/api/src/providers/types.ts](apps/api/src/providers/types.ts) defines `Provider` (`resolve` canonicalizes user input, `fetch` returns normalized items or `not_modified`). `fetch` is injected through a context so providers can be tested without the network. Providers are registered in a small registry. The RSS/Atom provider ([apps/api/src/providers/rss](apps/api/src/providers/rss)) is implemented: it parses RSS 2.0, RSS 1.0 and Atom (including Reddit and YouTube-style feeds), builds plain-text excerpts, finds feeds advertised by web pages, and uses conditional requests. Other providers are still to do.
 
+**YouTube.** Channel feeds (`videos.xml?channel_id=...`) need no API key. A channel is stored by its channel ID, so `@handles` are looked up once through `/sources/resolve` (from the channel page's canonical link) and saving a widget never touches the network for them. If YouTube shows a cookie-consent page instead of the channel (common from EU addresses), the lookup fails with an explanation, and pasting a `/channel/UC...` address works instead. Videos link out to YouTube; nothing is embedded.
+
+**Weather.** [Open-Meteo](https://open-meteo.com/) (no key). Current conditions and five days, cached for 30 minutes per location rounded to about a kilometre. If the service fails, the last cached answer is returned with `stale: true`. The response carries the attribution text the free tier asks for, and the UI must show it. Open-Meteo is free for non-commercial use only.
+
 **Safe HTTP client.** Everything that fetches user-supplied URLs goes through [apps/api/src/lib/http.ts](apps/api/src/lib/http.ts) and [ssrf.ts](apps/api/src/lib/ssrf.ts): only http(s), no credentials, private/local/link-local addresses are blocked (IPv4, IPv6 and IPv4-in-IPv6), redirects are followed by hand and re-checked at every hop, and a connection-time DNS guard stops DNS rebinding. Responses are capped at 2 MB and 10 seconds. Checked live: public feeds load, while `localhost`, `169.254.169.254` and `localtest.me` (a public name that resolves to 127.0.0.1) are refused.
 
 ## Design principles
@@ -139,11 +143,11 @@ Tests are written with each feature, not afterwards.
 - Web: component and store tests with Vue Test Utils, API mocks with MSW, and a few Playwright end-to-end tests for flows like adding a widget and saving a layout. Drag and drop is tested in the end-to-end layer only.
 - Not planned yet: visual regression and snapshot tests.
 
-Current tests: 5 in `shared`, 207 in `api`, 2 in `web`.
+Current tests: 5 in `shared`, 280 in `api`, 2 in `web`.
 
 ## What's next
 
-See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the dashboard grid in the web app (tabs, widget cards, edit mode, add-widget panel), then YouTube and weather providers.
+See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the dashboard grid in the web app (tabs, widget cards, edit mode, add-widget panel), then RoyalRoad.
 
 ## Open questions
 

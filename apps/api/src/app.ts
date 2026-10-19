@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { AppDeps, Env } from './context'
 import { errorHandler, notFoundHandler } from './http'
 import { dashboardRoutes } from './routes/dashboards'
+import { geocodeRoutes } from './routes/geocode'
 import { itemRoutes } from './routes/items'
 import { sourceRoutes } from './routes/sources'
 import { widgetRoutes } from './routes/widgets'
@@ -12,6 +13,7 @@ export function createApp(deps: AppDeps) {
     .get('/health', (c) => c.json({ status: 'ok' as const }))
     .route('/dashboards', dashboardRoutes(deps))
     .route('/widgets', widgetRoutes(deps))
+    .route('/geocode', geocodeRoutes(deps))
     .route('/items', itemRoutes(deps))
     .route('/sources', sourceRoutes(deps))
     .route('/widget-types', widgetTypeRoutes())

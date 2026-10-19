@@ -25,7 +25,11 @@ export function normalizeInput(input: string): string {
   return url.href
 }
 
-async function download(url: string, ctx: FetchContext, headers: Record<string, string> = {}) {
+export async function download(
+  url: string,
+  ctx: FetchContext,
+  headers: Record<string, string> = {},
+) {
   const res = await ctx.http.get(url, { headers: { accept: ACCEPT, ...headers } })
   if (res.status === 304) return res
   if (res.status < 200 || res.status >= 300) {
@@ -37,6 +41,37 @@ async function download(url: string, ctx: FetchContext, headers: Record<string, 
     })
   }
   return res
+}
+
+/** Downloads and parses a feed, sending conditional headers when the source has validators. */
+export async function fetchFeed(
+  url: string,
+  source: SourceRef,
+  ctx: FetchContext,
+): Promise<FetchResult> {
+  const conditional: Record<string, string> = {}
+  if (source.etag) conditional['if-none-match'] = source.etag
+  if (source.lastModified) conditional['if-modified-since'] = source.lastModified
+
+  const res = await download(url, ctx, conditional)
+  if (res.status === 304) return { status: 'not_modified' }
+
+  let feed
+  try {
+    feed = parseFeed(res.body, res.url, ctx.now())
+  } catch (error) {
+    if (error instanceof FeedParseError) throw new ProviderError(error.message)
+    throw error
+  }
+
+  return {
+    status: 'ok',
+    items: feed.items,
+    etag: res.headers.get('etag') ?? undefined,
+    lastModified: res.headers.get('last-modified') ?? undefined,
+    title: feed.title,
+    siteUrl: feed.siteUrl,
+  }
 }
 
 export const rssProvider: Provider = {
@@ -69,29 +104,5 @@ export const rssProvider: Provider = {
     }
   },
 
-  async fetch(source: SourceRef, ctx: FetchContext): Promise<FetchResult> {
-    const conditional: Record<string, string> = {}
-    if (source.etag) conditional['if-none-match'] = source.etag
-    if (source.lastModified) conditional['if-modified-since'] = source.lastModified
-
-    const res = await download(source.key, ctx, conditional)
-    if (res.status === 304) return { status: 'not_modified' }
-
-    let feed
-    try {
-      feed = parseFeed(res.body, res.url, ctx.now())
-    } catch (error) {
-      if (error instanceof FeedParseError) throw new ProviderError(error.message)
-      throw error
-    }
-
-    return {
-      status: 'ok',
-      items: feed.items,
-      etag: res.headers.get('etag') ?? undefined,
-      lastModified: res.headers.get('last-modified') ?? undefined,
-      title: feed.title,
-      siteUrl: feed.siteUrl,
-    }
-  },
+  fetch: (source, ctx) => fetchFeed(source.key, source, ctx),
 }

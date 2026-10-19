@@ -34,7 +34,7 @@ describe('POST /sources/resolve', () => {
 
   it('says when a kind has no provider yet', async () => {
     const t = createTestApp()
-    const res = await t.call('POST', '/sources/resolve', { kind: 'youtube', input: '@channel' })
+    const res = await t.call('POST', '/sources/resolve', { kind: 'royalroad', input: '12345' })
     expect(res.status).toBe(422)
     expect(res.body.error.code).toBe('source_kind_unavailable')
   })

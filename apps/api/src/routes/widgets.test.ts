@@ -101,17 +101,9 @@ describe('GET /widgets/:id/data', () => {
     expect(body.sources[0].error).toBe('error: The site answered with HTTP 500')
   })
 
-  it('answers 404 for unknown widgets and 501 for weather', async () => {
+  it('answers 404 for unknown widgets', async () => {
     const t = createTestApp()
     expect((await t.call('GET', '/widgets/nope/data')).status).toBe(404)
-
-    const dashboard = await t.call('POST', '/dashboards', { name: 'Home' })
-    const weather = await t.call('POST', `/dashboards/${dashboard.body.id}/widgets`, {
-      type: 'weather',
-      title: 'Weather',
-      config: { location: { name: 'Amsterdam', lat: 52.37, lon: 4.9 } },
-    })
-    expect((await t.call('GET', `/widgets/${weather.body.id}/data`)).status).toBe(501)
   })
 })
 

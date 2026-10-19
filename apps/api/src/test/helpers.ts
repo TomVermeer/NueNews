@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 import { createApp } from '../app'
 import type { AppDeps } from '../context'
-import type { NormalizedItem } from '@nuenews/shared'
+import type { NormalizedItem, SourceKind } from '@nuenews/shared'
 import { createDb, type Db } from '../db/client'
 import { dashboards, sources, widgetSources, widgets } from '../db/schema'
 import { ensureLocalUser } from '../db/seed'
@@ -83,20 +83,23 @@ export function freshDb(): Db {
 /** The whole API on an in-memory database with a scripted provider, fixed clock and no network. */
 export function createTestApp(
   behaviour: Parameters<typeof fakeProvider>[0] = {},
-  overrides: Partial<AppDeps> = {},
+  overrides: Partial<AppDeps> & { registryKinds?: SourceKind[] } = {},
 ) {
   const db = freshDb()
   const userId = ensureLocalUser(db)
   const { provider, fetch } = fakeProvider(behaviour)
   const deps: AppDeps = {
     db,
-    registry: makeRegistry(provider),
+    registry: createRegistry(
+      (overrides.registryKinds ?? ['rss', 'youtube']).map((kind) => ({ ...provider, kind })),
+    ),
     fetchContext: fakeContext(),
     now: () => NOW,
     currentUserId: () => userId,
     minRefreshIntervalSec: 60,
     ...overrides,
   }
+  delete (deps as { registryKinds?: unknown }).registryKinds
   const app = createApp(deps)
 
   /** Calls the API under /api/v1 and parses the JSON response. */

@@ -194,9 +194,9 @@ describe('creating widgets', () => {
     const t = createTestApp()
     const id = await newDashboard(t)
     const res = await t.call('POST', `/dashboards/${id}/widgets`, {
-      type: 'youtube',
-      title: 'Videos',
-      config: { channels: [{ input: '@somechannel' }] },
+      type: 'royalroad',
+      title: 'Chapters',
+      config: { fictions: [{ urlOrId: '12345' }] },
     })
     expect(res.status).toBe(422)
     expect(res.body.error.code).toBe('widget_type_unavailable')

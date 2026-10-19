@@ -16,7 +16,7 @@ export const royalroadConfigSchema = z.object({
 })
 
 export const youtubeConfigSchema = z.object({
-  channels: z.array(z.object({ input: z.string().min(1) })).min(1),
+  channels: z.array(z.object({ input: z.string().min(1), label: z.string().optional() })).min(1),
   limit: z.number().int().min(1).max(50).default(3),
 })
 

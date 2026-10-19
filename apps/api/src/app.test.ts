@@ -44,6 +44,6 @@ describe('GET /api/v1/widget-types', () => {
     const feed = body.types.find((t: { type: string }) => t.type === 'feed')
     expect(feed).toMatchObject({ available: true, defaultSize: { w: 4, h: 6 } })
     expect(feed.configSchema.properties).toHaveProperty('sources')
-    expect(body.types.find((t: { type: string }) => t.type === 'youtube').available).toBe(false)
+    expect(body.types.find((t: { type: string }) => t.type === 'royalroad').available).toBe(false)
   })
 })

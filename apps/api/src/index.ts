@@ -5,6 +5,7 @@ import { ensureLocalUser } from './db/seed'
 import { createDefaultHttpClient } from './lib/http'
 import { createRegistry } from './providers/registry'
 import { rssProvider } from './providers/rss'
+import { youtubeProvider } from './providers/youtube'
 import { createScheduler } from './scheduler/scheduler'
 
 const port = Number(process.env.PORT ?? 3000)
@@ -14,7 +15,7 @@ const userAgent = process.env.USER_AGENT ?? 'NueNews/0.1 (personal dashboard)'
 const db = createDb(databasePath)
 const userId = ensureLocalUser(db)
 
-const registry = createRegistry([rssProvider])
+const registry = createRegistry([rssProvider, youtubeProvider])
 const fetchContext = { http: createDefaultHttpClient(userAgent), now: () => new Date() }
 
 const app = createApp({

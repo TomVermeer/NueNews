@@ -1,13 +1,20 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { feedConfigSchema, updateWidgetSchema, widgetConfigSchemas } from '@nuenews/shared'
+import {
+  updateWidgetSchema,
+  WEATHER_ATTRIBUTION,
+  weatherConfigSchema,
+  widgetConfigSchemas,
+} from '@nuenews/shared'
 import type { AppDeps, Env } from '../context'
 import { itemState, items, sources, widgetSources, widgets } from '../db/schema'
 import { ApiError, notFound, validate } from '../http'
 import { refreshSourcesNow } from '../services/refreshNow'
+import { getWeather } from '../weather/service'
 import {
   linkWidgetSources,
   ownedWidget,
+  sourceLabels,
   sourceRefsFor,
   toWidgetDto,
 } from '../services/widgetSources'
@@ -69,14 +76,29 @@ export function widgetRoutes(deps: AppDeps) {
       return c.body(null, 204)
     })
 
-    .get('/:id/data', (c) => {
+    .get('/:id/data', async (c) => {
       const userId = c.get('userId')
       const widget = owned(userId, c.req.param('id'))
 
       if (widget.type === 'weather') {
-        throw new ApiError(501, 'not_implemented', 'Weather data is not available yet')
+        const config = weatherConfigSchema.parse(widget.config)
+        const { snapshot, fetchedAt, stale } = await getWeather(
+          { db, http: deps.fetchContext.http, now: deps.now },
+          config.location,
+          config.units,
+        )
+        return c.json({
+          widget: { id: widget.id, type: widget.type, title: widget.title },
+          location: config.location,
+          units: config.units,
+          ...snapshot,
+          fetchedAt,
+          stale,
+          attribution: WEATHER_ATTRIBUTION,
+        })
       }
-      if (widget.type !== 'feed') {
+
+      if (widget.type !== 'feed' && widget.type !== 'youtube') {
         throw new ApiError(
           422,
           'widget_type_unavailable',
@@ -84,8 +106,8 @@ export function widgetRoutes(deps: AppDeps) {
         )
       }
 
-      const config = feedConfigSchema.parse(widget.config)
-      const labels = new Map(config.sources.map((s) => [new URL(s.url).href, s.label]))
+      const config = widgetConfigSchemas[widget.type].parse(widget.config)
+      const labels = sourceLabels(widget.type, config)
       const sourceRows = db
         .select()
         .from(sources)
