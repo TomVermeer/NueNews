@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <title>Example Channel</title>
+  <link rel="self" href="https://videos.example.com/feeds/channel.xml"/>
+  <link rel="alternate" href="https://videos.example.com/channel/abc"/>
+  <updated>2026-01-06T10:00:00+00:00</updated>
+
+  <entry>
+    <id>video:xyz123</id>
+    <title>Building a dashboard in Vue</title>
+    <link rel="replies" href="https://videos.example.com/comments/xyz123"/>
+    <link rel="alternate" href="https://videos.example.com/watch?v=xyz123"/>
+    <author><name>Channel A</name></author>
+    <published>2026-01-06T08:00:00+00:00</published>
+    <updated>2026-01-06T09:00:00+00:00</updated>
+    <media:group>
+      <media:title>Building a dashboard in Vue</media:title>
+      <media:thumbnail url="https://img.example.com/vi/xyz123/hqdefault.jpg" width="480" height="360"/>
+      <media:description>In this video we build a dashboard with Vue 3, Tailwind and Hono.</media:description>
+    </media:group>
+  </entry>
+
+  <entry>
+    <id>tag:example.com,2026:post-7</id>
+    <title type="html">Tailwind &lt;em&gt;v4&lt;/em&gt; deep dive</title>
+    <link href="https://videos.example.com/watch?v=post7"/>
+    <updated>2026-01-05T09:00:00Z</updated>
+    <summary type="html">&lt;p&gt;A walk through the new engine.&lt;/p&gt;</summary>
+  </entry>
+
+  <entry>
+    <title>Broken entry without a usable link</title>
+    <link href="javascript:alert(1)"/>
+  </entry>
+</feed>

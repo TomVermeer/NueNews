@@ -1,4 +1,5 @@
 import type { NormalizedItem, SourceKind } from '@nuenews/shared'
+import type { HttpClient } from '../lib/http'
 
 /** What a provider needs to know about a stored source in order to fetch it. */
 export interface SourceRef {
@@ -9,10 +10,10 @@ export interface SourceRef {
   lastModified: string | null
 }
 
-/** Injected so providers never touch the real network in tests. */
+/** Injected so providers never touch the real network (or the real clock) in tests. */
 export interface FetchContext {
-  fetch: typeof globalThis.fetch
-  userAgent: string
+  http: HttpClient
+  now: () => Date
 }
 
 /** The canonical identity of a source, produced from whatever the user typed. */

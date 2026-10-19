@@ -81,7 +81,9 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 
 **Database.** SQLite through Drizzle ORM (`better-sqlite3`): zero setup, a single file to back up, and a clear path to Postgres later. The schema is in [apps/api/src/db/schema.ts](apps/api/src/db/schema.ts) and SQL migrations live in `apps/api/drizzle/`. Migrations are applied automatically when the API starts. The database file defaults to `apps/api/data/nuenews.sqlite` (git-ignored); set `DATABASE_PATH` to change it. Tests use in-memory databases. Shared tables (`sources`, `items`, `weather_cache`) have no `user_id`; user-owned tables (`dashboards`, `widgets`, `item_state`, ...) do, and v1 seeds a single `local` user.
 
-**Provider interface.** [apps/api/src/providers/types.ts](apps/api/src/providers/types.ts) defines `Provider` (`resolve` canonicalizes user input, `fetch` returns normalized items or `not_modified`). `fetch` is injected through a context so providers can be tested without the network. Providers are registered in a small registry; none are implemented yet.
+**Provider interface.** [apps/api/src/providers/types.ts](apps/api/src/providers/types.ts) defines `Provider` (`resolve` canonicalizes user input, `fetch` returns normalized items or `not_modified`). `fetch` is injected through a context so providers can be tested without the network. Providers are registered in a small registry. The RSS/Atom provider ([apps/api/src/providers/rss](apps/api/src/providers/rss)) is implemented: it parses RSS 2.0, RSS 1.0 and Atom (including Reddit and YouTube-style feeds), builds plain-text excerpts, finds feeds advertised by web pages, and uses conditional requests. Other providers are still to do.
+
+**Safe HTTP client.** Everything that fetches user-supplied URLs goes through [apps/api/src/lib/http.ts](apps/api/src/lib/http.ts) and [ssrf.ts](apps/api/src/lib/ssrf.ts): only http(s), no credentials, private/local/link-local addresses are blocked (IPv4, IPv6 and IPv4-in-IPv6), redirects are followed by hand and re-checked at every hop, and a connection-time DNS guard stops DNS rebinding. Responses are capped at 2 MB and 10 seconds. Checked live: public feeds load, while `localhost`, `169.254.169.254` and `localtest.me` (a public name that resolves to 127.0.0.1) are refused.
 
 ## Design principles
 
@@ -101,13 +103,14 @@ Tests are written with each feature, not afterwards.
 - Web: component and store tests with Vue Test Utils, API mocks with MSW, and a few Playwright end-to-end tests for flows like adding a widget and saving a layout. Drag and drop is tested in the end-to-end layer only.
 - Not planned yet: visual regression and snapshot tests.
 
-Current tests: 5 in `shared`, 20 in `api`, 2 in `web`.
+Current tests: 5 in `shared`, 139 in `api`, 2 in `web`.
 
 ## What's next
 
-See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the RSS provider, the SSRF-safe HTTP client and the scheduler, then the dashboard grid.
+See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the scheduler (polling, backoff, pruning), the dashboard and widget API routes, then the dashboard grid.
 
 ## Open questions
 
 - RoyalRoad "follows" mode (reading a user's follow list) needs a logged-in session and RoyalRoad has no official API. Whether and how to support it still needs a feasibility check. Pasting fiction URLs works without any of that.
+- Reddit: unauthenticated requests to Reddit's RSS currently get `429` straight away (checked 2026-10-19, with an honest descriptive User-Agent). Reddit will probably need its free OAuth API credentials. We will not work around this by pretending to be a browser. Decide when we build the Reddit preset.
 - Reddit widget size and presentation, to revisit with real data.

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>Example Tech &amp; Science News</title>
+    <link>https://news.example.com/</link>
+    <description>Daily technology news</description>
+
+    <item>
+      <title>Chip makers announce new 2nm roadmap</title>
+      <link>https://news.example.com/articles/2nm-roadmap</link>
+      <guid isPermaLink="false">article-1001</guid>
+      <pubDate>Tue, 06 Jan 2026 09:30:00 GMT</pubDate>
+      <dc:creator>Jane Doe</dc:creator>
+      <description>&lt;p&gt;The company said production would begin next year, with early samples shipping to partners in the spring. Analysts expect the new process to deliver &lt;strong&gt;significant&lt;/strong&gt; efficiency gains for mobile devices, although yields remain a concern for the first production runs this year.&lt;/p&gt;</description>
+      <enclosure url="https://cdn.example.com/img/2nm.jpg" length="12345" type="image/jpeg"/>
+    </item>
+
+    <item>
+      <title>Fish &amp;amp; chips: a data story</title>
+      <link>/articles/fish-and-chips</link>
+      <guid>https://news.example.com/articles/fish-and-chips</guid>
+      <pubDate>Mon, 05 Jan 2026 18:00:00 +0100</pubDate>
+      <description>Short summary.</description>
+      <content:encoded><![CDATA[<p>Full text here.</p><img src="/images/chips.jpg" alt="chips">]]></content:encoded>
+    </item>
+
+    <item>
+      <title>Item that only has a guid permalink</title>
+      <guid isPermaLink="true">https://news.example.com/articles/guid-only</guid>
+      <pubDate>Sun, 04 Jan 2026 08:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+      <title>Item with no link and no guid</title>
+      <description>This one cannot be opened, so it is dropped.</description>
+    </item>
+
+    <item>
+      <title>Item with a media thumbnail</title>
+      <link>https://news.example.com/articles/media-thumb</link>
+      <pubDate>Sat, 03 Jan 2026 12:00:00 GMT</pubDate>
+      <media:thumbnail url="https://cdn.example.com/img/thumb.png" width="144" height="81"/>
+      <description>Has a thumbnail.</description>
+    </item>
+
+    <item>
+      <title>Item with scripts and no date</title>
+      <link>https://news.example.com/articles/scripts</link>
+      <description>&lt;script&gt;alert(1)&lt;/script&gt;&lt;p&gt;Safe &amp;amp; readable text&lt;/p&gt;&lt;style&gt;p{color:red}&lt;/style&gt;</description>
+    </item>
+  </channel>
+</rss>

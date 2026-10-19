@@ -141,4 +141,5 @@ Tests are written alongside each feature from phase 1, not added afterwards. One
 ## 10. Open questions
 
 - RoyalRoad follows mode: how do we get the follow list without storing the user's password? Candidates: user pastes a session cookie (encrypted at rest, expires, fragile) or a browser bookmarklet/extension that exports the follow list once. Needs a feasibility check against the live site and its terms before we promise it.
+- Reddit: unauthenticated RSS returned `429` immediately in a live check on 2026-10-19 (identified User-Agent, no rate-limit budget left). Plan: use Reddit's OAuth API with the user's own free app credentials, and keep the RSS path as best-effort.
 - Reddit widget size (revisit after seeing real data).

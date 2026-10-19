@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <category term="programming" label="r/programming"/>
+  <updated>2026-01-06T10:00:00+00:00</updated>
+  <id>/r/programming/.rss</id>
+  <link rel="self" href="https://www.reddit.com/r/programming/.rss" type="application/atom+xml"/>
+  <link rel="alternate" href="https://www.reddit.com/r/programming/" type="text/html"/>
+  <title>Programming</title>
+  <entry>
+    <author><name>/u/devguy</name><uri>https://www.reddit.com/user/devguy</uri></author>
+    <category term="programming" label="r/programming"/>
+    <content type="html">&lt;table&gt; &lt;tr&gt;&lt;td&gt; &lt;a href="https://www.reddit.com/r/programming/comments/1abc/why_we_moved_off_microservices/"&gt; &lt;img src="https://preview.redd.it/abc.jpg?width=640" alt="Why we moved off microservices" /&gt; &lt;/a&gt; &lt;/td&gt;&lt;td&gt;&amp;#32; submitted by &amp;#32; &lt;a href="https://www.reddit.com/user/devguy"&gt; /u/devguy &lt;/a&gt; &lt;span&gt;&lt;a href="https://example.com/post"&gt;[link]&lt;/a&gt;&lt;/span&gt; &lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</content>
+    <id>t3_1abc</id>
+    <media:thumbnail url="https://b.thumbs.redditmedia.com/abc.jpg"/>
+    <link href="https://www.reddit.com/r/programming/comments/1abc/why_we_moved_off_microservices/"/>
+    <updated>2026-01-06T09:12:00+00:00</updated>
+    <published>2026-01-06T09:12:00+00:00</published>
+    <title>Why we moved off microservices</title>
+  </entry>
+  <entry>
+    <author><name>/u/lite</name></author>
+    <content type="html">&lt;!-- SC_OFF --&gt;&lt;div class="md"&gt;&lt;p&gt;SQLite is not a toy database, here is why.&lt;/p&gt;&lt;/div&gt;&lt;!-- SC_ON --&gt;</content>
+    <id>t3_1abd</id>
+    <link href="https://www.reddit.com/r/programming/comments/1abd/sqlite_is_not_a_toy_database/"/>
+    <updated>2026-01-06T08:00:00+00:00</updated>
+    <title>SQLite is not a toy database</title>
+  </entry>
+</feed>
