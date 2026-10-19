@@ -2,7 +2,7 @@
 
 A personal dashboard that pulls feeds from other sites (RSS/Atom, Reddit, YouTube, RoyalRoad, weather) into a customizable grid of widgets. The first version is for a single user, but the design keeps the door open for multiple users and shareable dashboards.
 
-Status: early scaffolding. The monorepo, shared schemas, a minimal API and a minimal web app exist. Feed providers, the database and the dashboard UI are not built yet. The full plan lives in [docs/DESIGN.md](docs/DESIGN.md).
+Status: backend core is working: database, RSS/Atom provider, scheduler and the dashboard/widget API. The web app is still a placeholder shell (the dashboard grid is next). The full plan lives in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## How to run
 
@@ -35,6 +35,42 @@ Other commands, run from the repo root:
 | `pnpm --filter @nuenews/api dev`         | Runs only the API (set `PORT` to change the port)                          |
 | `pnpm --filter @nuenews/api db:generate` | Generates a new SQL migration after you change `apps/api/src/db/schema.ts` |
 | `pnpm --filter @nuenews/web dev`         | Runs only the web app                                                      |
+
+## Configuration
+
+The API reads these environment variables (all optional):
+
+| Variable        | Default                            | Purpose                                                                          |
+| --------------- | ---------------------------------- | -------------------------------------------------------------------------------- |
+| `PORT`          | `3000`                             | API port                                                                         |
+| `DATABASE_PATH` | `./data/nuenews.sqlite`            | SQLite file (relative to `apps/api`)                                             |
+| `USER_AGENT`    | `NueNews/0.1 (personal dashboard)` | Sent with every feed request. Put a contact URL in it if you host this publicly. |
+
+## API
+
+Everything lives under `/api/v1`. Errors always look like `{ "error": { "code": "...", "message": "..." } }`. v1 has no login: every request acts as the seeded local user, and every query is already scoped to that user.
+
+| Method and path                                   | Purpose                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `GET /health`                                     | Liveness                                                                                         |
+| `GET /widget-types`                               | Widget types, whether they are available yet, default size, and a JSON Schema of each config     |
+| `GET /dashboards`, `POST /dashboards`             | List (tabs) and create                                                                           |
+| `PATCH /dashboards/:id`, `DELETE /dashboards/:id` | Rename and delete                                                                                |
+| `PUT /dashboards/reorder`                         | Save tab order (must list every dashboard once)                                                  |
+| `GET /dashboards/:id`                             | A dashboard with its widgets and layout                                                          |
+| `PUT /dashboards/:id/layout`                      | "Save layout": positions and sizes, plus widgets removed in edit mode, in one transaction        |
+| `POST /dashboards/:id/widgets`                    | Add a widget. Sources are created or reused, and fetched immediately so the widget is not empty. |
+| `PATCH /widgets/:id`, `DELETE /widgets/:id`       | Change title or config, and remove                                                               |
+| `GET /widgets/:id/data`                           | What to render: newest items (with seen and read state) and per-source status                    |
+| `POST /widgets/:id/refresh`                       | Refresh now. Sources fetched in the last minute are skipped.                                     |
+| `POST /items/state`                               | Mark items `seen`, `read` or `unread`                                                            |
+| `POST /sources/resolve`                           | Turn what a user typed into a canonical source (feed autodiscovery, Reddit pages to their feed)  |
+
+Not built yet: weather data and geocoding, YouTube and RoyalRoad widgets (they are rejected with `widget_type_unavailable`), import/export.
+
+## Scheduler
+
+An in-process loop ([apps/api/src/scheduler](apps/api/src/scheduler)) wakes up every minute and refreshes sources that are due and used by at least one widget. Sources on the same site are fetched one at a time and at most four sites run in parallel. A successful fetch schedules the next one after the source's interval (30 minutes by default). Failures back off exponentially (1 h, 2 h, 4 h, then every 6 h) and honour `Retry-After` hints. Only the newest 100 items per source are kept.
 
 ## Stack
 
@@ -103,11 +139,11 @@ Tests are written with each feature, not afterwards.
 - Web: component and store tests with Vue Test Utils, API mocks with MSW, and a few Playwright end-to-end tests for flows like adding a widget and saving a layout. Drag and drop is tested in the end-to-end layer only.
 - Not planned yet: visual regression and snapshot tests.
 
-Current tests: 5 in `shared`, 139 in `api`, 2 in `web`.
+Current tests: 5 in `shared`, 207 in `api`, 2 in `web`.
 
 ## What's next
 
-See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the scheduler (polling, backoff, pruning), the dashboard and widget API routes, then the dashboard grid.
+See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the dashboard grid in the web app (tabs, widget cards, edit mode, add-widget panel), then YouTube and weather providers.
 
 ## Open questions
 

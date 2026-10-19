@@ -1,6 +1,6 @@
 # NueNews: plan and design
 
-Status: draft v0.2 (wireframes approved, data model and API for review)
+Status: v0.3. Backend core implemented (see README); web UI not started.
 
 ## 1. Stack
 
@@ -29,7 +29,7 @@ Vue app  --(typed fetch)-->  Hono API  --reads-->  SQLite (items cache)
 - **Provider (backend plugin):** `{ kind, configSchema, resolve(input), fetch(source, conditional) -> NormalizedItem[] }`. Adding an integration is one file plus one registry line.
 - **Widget type (shared registry):** `{ type, configSchema, defaultLayout }` in `packages/shared`; the Vue component and settings form live in `apps/web`. The API exposes the registry so the UI can build forms from the schema.
 - **Normalized item:** `{ externalId, title, url, excerpt?, imageUrl?, author?, publishedAt, meta? }`.
-- **Scheduler:** a loop picks sources where `next_fetch_at <= now`, limits concurrency per host, backs off exponentially on errors, and prunes old items (keep the latest 100 per source, max 60 days).
+- **Scheduler:** a loop picks sources where `next_fetch_at <= now`, limits concurrency per host, backs off exponentially on errors, and prunes old items (keeps the newest 100 per source; there is no age limit, so quiet feeds keep their history).
 - **Safety (matters for multi-user):** SSRF guard on user-supplied URLs (block private and loopback ranges, https/http only, no redirects into private ranges), 10 s timeout, 2 MB response cap, HTML sanitized to plain text, image URLs must be http(s).
 
 ## 4. Data model (Drizzle / SQLite)

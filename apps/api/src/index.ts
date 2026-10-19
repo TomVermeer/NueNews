@@ -1,14 +1,41 @@
 import { serve } from '@hono/node-server'
-import { app } from './app'
+import { createApp } from './app'
 import { createDb } from './db/client'
 import { ensureLocalUser } from './db/seed'
+import { createDefaultHttpClient } from './lib/http'
+import { createRegistry } from './providers/registry'
+import { rssProvider } from './providers/rss'
+import { createScheduler } from './scheduler/scheduler'
 
 const port = Number(process.env.PORT ?? 3000)
 const databasePath = process.env.DATABASE_PATH ?? './data/nuenews.sqlite'
+const userAgent = process.env.USER_AGENT ?? 'NueNews/0.1 (personal dashboard)'
 
 const db = createDb(databasePath)
-ensureLocalUser(db)
+const userId = ensureLocalUser(db)
 
-serve({ fetch: app.fetch, port }, (info) => {
+const registry = createRegistry([rssProvider])
+const fetchContext = { http: createDefaultHttpClient(userAgent), now: () => new Date() }
+
+const app = createApp({
+  db,
+  registry,
+  fetchContext,
+  now: () => new Date(),
+  currentUserId: () => userId,
+  minRefreshIntervalSec: 60,
+})
+
+const scheduler = createScheduler({ db, registry, ctx: fetchContext })
+scheduler.start()
+
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`API listening on http://localhost:${info.port} (database: ${databasePath})`)
 })
+
+function shutdown() {
+  scheduler.stop()
+  server.close()
+}
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)
