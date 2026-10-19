@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+export const sourceKindSchema = z.enum(['rss', 'youtube', 'royalroad'])
+export type SourceKind = z.infer<typeof sourceKindSchema>
+
 export const normalizedItemSchema = z.object({
   externalId: z.string().min(1),
   title: z.string().min(1),

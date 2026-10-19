@@ -24,16 +24,17 @@ Check it works: open http://localhost:5273. The top right should say "API: onlin
 
 Other commands, run from the repo root:
 
-| Command                          | What it does                                            |
-| -------------------------------- | ------------------------------------------------------- |
-| `pnpm test`                      | Runs Vitest in every package                            |
-| `pnpm typecheck`                 | `tsc` for shared and api, `vue-tsc` for web             |
-| `pnpm build`                     | Type-checks and builds the web app into `apps/web/dist` |
-| `pnpm format`                    | Formats the repo with Prettier                          |
-| `pnpm lint`                      | Runs ESLint (TypeScript and Vue rules)                  |
-| `pnpm format:check`              | Checks formatting without changing files                |
-| `pnpm --filter @nuenews/api dev` | Runs only the API (set `PORT` to change the port)       |
-| `pnpm --filter @nuenews/web dev` | Runs only the web app                                   |
+| Command                                  | What it does                                                               |
+| ---------------------------------------- | -------------------------------------------------------------------------- |
+| `pnpm test`                              | Runs Vitest in every package                                               |
+| `pnpm typecheck`                         | `tsc` for shared and api, `vue-tsc` for web                                |
+| `pnpm build`                             | Type-checks and builds the web app into `apps/web/dist`                    |
+| `pnpm format`                            | Formats the repo with Prettier                                             |
+| `pnpm lint`                              | Runs ESLint (TypeScript and Vue rules)                                     |
+| `pnpm format:check`                      | Checks formatting without changing files                                   |
+| `pnpm --filter @nuenews/api dev`         | Runs only the API (set `PORT` to change the port)                          |
+| `pnpm --filter @nuenews/api db:generate` | Generates a new SQL migration after you change `apps/api/src/db/schema.ts` |
+| `pnpm --filter @nuenews/web dev`         | Runs only the web app                                                      |
 
 ## Stack
 
@@ -78,7 +79,9 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 
 **Ready for multiple users, without building them yet.** Version 1 has no login and runs as one seeded local user, but every user-owned table carries a `user_id` from the start, so adding real authentication later will not need a data migration. Shared data (sources, cached items) has no `user_id`, so one fetch serves everyone.
 
-**Database plan.** SQLite through Drizzle ORM: zero setup locally, a single file to back up, and a clear path to Postgres when hosting or multi-user needs it. Planned tables are listed in [docs/DESIGN.md](docs/DESIGN.md).
+**Database.** SQLite through Drizzle ORM (`better-sqlite3`): zero setup, a single file to back up, and a clear path to Postgres later. The schema is in [apps/api/src/db/schema.ts](apps/api/src/db/schema.ts) and SQL migrations live in `apps/api/drizzle/`. Migrations are applied automatically when the API starts. The database file defaults to `apps/api/data/nuenews.sqlite` (git-ignored); set `DATABASE_PATH` to change it. Tests use in-memory databases. Shared tables (`sources`, `items`, `weather_cache`) have no `user_id`; user-owned tables (`dashboards`, `widgets`, `item_state`, ...) do, and v1 seeds a single `local` user.
+
+**Provider interface.** [apps/api/src/providers/types.ts](apps/api/src/providers/types.ts) defines `Provider` (`resolve` canonicalizes user input, `fetch` returns normalized items or `not_modified`). `fetch` is injected through a context so providers can be tested without the network. Providers are registered in a small registry; none are implemented yet.
 
 ## Design principles
 
@@ -98,11 +101,11 @@ Tests are written with each feature, not afterwards.
 - Web: component and store tests with Vue Test Utils, API mocks with MSW, and a few Playwright end-to-end tests for flows like adding a widget and saving a layout. Drag and drop is tested in the end-to-end layer only.
 - Not planned yet: visual regression and snapshot tests.
 
-Current tests: 5 in `shared`, 3 in `api`, 2 in `web`.
+Current tests: 5 in `shared`, 20 in `api`, 2 in `web`.
 
 ## What's next
 
-See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the database schema, provider interface and RSS provider, then the dashboard grid.
+See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: the RSS provider, the SSRF-safe HTTP client and the scheduler, then the dashboard grid.
 
 ## Open questions
 
