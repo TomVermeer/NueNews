@@ -11,10 +11,10 @@ services:
     region: frankfurt
     autoDeploy: true
     healthCheckPath: /api/v1/health
-    # corepack provides the pnpm version pinned in package.json. Dev dependencies are needed to
+    # "corepack pnpm" runs the pnpm version pinned in package.json (the image is read-only, so "corepack enable" fails). The start command skips pnpm because it is not on the PATH at runtime. Dev dependencies are needed to
     # build the web app, and the API runs with tsx, so install them even though NODE_ENV is production.
-    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @nuenews/web build
-    startCommand: pnpm --filter @nuenews/api start
+    buildCommand: corepack pnpm install --frozen-lockfile --prod=false && corepack pnpm --filter @nuenews/web build
+    startCommand: cd apps/api && node_modules/.bin/tsx src/index.ts
     envVars:
       - key: NODE_VERSION
         value: '24'

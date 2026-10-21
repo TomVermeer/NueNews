@@ -113,7 +113,7 @@ Decisions that are yours: whether the GitHub repository stays public (the backup
 
 Things to watch at the first deploy, because they could not be tested here:
 
-- The Render build command uses `corepack enable` for pnpm. If the build fails on pnpm, change it in `render.yaml` (or the Render dashboard) and tell Claude the log.
+- The Render build image is read-only, so `corepack enable` fails; the build uses `corepack pnpm …` instead and the start command calls `tsx` directly. If the build still fails, change it in `render.yaml` (or the Render dashboard) and tell Claude the log.
 - Supabase may rename settings in its dashboard. The names above are from the current docs.
 - The first visit after a long idle takes about a minute while the service wakes.
 
