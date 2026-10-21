@@ -13,7 +13,7 @@ Status: v0.5. Backend and dashboard UI implemented except RoyalRoad (see README)
 1. **Headline and handoff.** Show only what the publisher put in the feed: title, short plain-text excerpt (about 200 chars), thumbnail, date, author. No full-text extraction, no in-app reader, no iframes. Every click opens the original URL in a new tab.
 2. Always attribute (source name and favicon). Hotlink thumbnails; do not rehost media. Do not strip tracking parameters from links.
 3. Polite fetching: clear `User-Agent` with a contact URL, conditional requests (`ETag`, `If-Modified-Since`), 15 to 60 minute intervals, honor `Retry-After` and `429`, one fetch per feed regardless of how many widgets or users use it.
-4. YouTube links out by default (no embedded player). Reddit uses public RSS for personal use; revisit the terms before this becomes multi-user. Open-Meteo is free for non-commercial use only.
+4. YouTube links out by default (no embedded player). Reddit uses public RSS for personal use; revisit the terms before this becomes multi-user. MET Norway (weather) is open data under CC BY 4.0 and needs a credit line; Open-Meteo (place search) is free for non-commercial use only.
 5. Spacious, card-like, dark mode only. Top-bar navigation only.
 6. Every user-owned table carries `user_id` from day one. v1 runs as one seeded local user with no login.
 
@@ -94,7 +94,7 @@ Conventions: Zod-validated input, a consistent `{ error: { code, message } }` sh
 - **YouTube:** `https://www.youtube.com/feeds/videos.xml?channel_id=UC...`. Handles resolve to channel ids once during `resolve` and are then stored.
 - **RoyalRoad, urls mode:** per-fiction feed at `/fiction/syndication/{id}` (to verify during implementation). Unread = chapters newer than the last read for that fiction.
 - **RoyalRoad, follows mode:** needs the user's logged-in session; RoyalRoad has no official API. See open questions.
-- **Weather:** Open-Meteo forecast endpoint, cached 30 minutes per rounded location.
+- **Weather:** MET Norway Locationforecast (`api.met.no`), cached 30 minutes per rounded location. Open-Meteo's shared free-tier IP limit answered `429` from Render, which is why it was replaced; Open-Meteo stays for place search only.
 
 ## 7. Repository layout
 

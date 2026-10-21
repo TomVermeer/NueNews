@@ -20,12 +20,12 @@ describe('WeatherWidget', () => {
     expect(days[0]!.text()).toMatch(/Mon/)
   })
 
-  it('credits Open-Meteo with a link', () => {
+  it('credits MET Norway with a link', () => {
     const wrapper = mount(WeatherWidget, { props: { data: weatherData() } })
     const link = wrapper.get('a')
-    expect(link.text()).toBe('Weather data by Open-Meteo.com')
+    expect(link.text()).toBe('Data from MET Norway')
     expect(link.attributes()).toMatchObject({
-      href: 'https://open-meteo.com/',
+      href: 'https://www.met.no/en',
       target: '_blank',
       rel: 'noopener noreferrer',
     })

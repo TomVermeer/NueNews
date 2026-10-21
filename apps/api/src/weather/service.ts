@@ -5,7 +5,8 @@ import { firstRow } from '../db/query'
 import { weatherCache } from '../db/schema'
 import type { HttpClient } from '../lib/http'
 import { parseRetryAfter, ProviderError } from '../providers/errors'
-import { forecastUrl, geocodeUrl, parseForecast, parseGeocoding, type Units } from './openMeteo'
+import { forecastUrl, parseForecast, type Units } from './metNo'
+import { geocodeUrl, parseGeocoding } from './openMeteo'
 
 export interface WeatherDeps {
   db: Db
@@ -59,12 +60,9 @@ export async function getWeather(
   if (cached && now().getTime() - cached.fetchedAt.getTime() < CACHE_TTL_MS) return asResult(false)
 
   try {
-    const snapshot = parseForecast(
-      await getJson(
-        http,
-        forecastUrl(Number(location.lat.toFixed(2)), Number(location.lon.toFixed(2)), units),
-      ),
-    )
+    const lat = Number(location.lat.toFixed(2))
+    const lon = Number(location.lon.toFixed(2))
+    const snapshot = parseForecast(await getJson(http, forecastUrl(lat, lon)), lon, units)
     const fetchedAt = now()
     await db
       .insert(weatherCache)

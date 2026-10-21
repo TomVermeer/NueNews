@@ -134,7 +134,7 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 
 **YouTube.** Channel feeds (`videos.xml?channel_id=...`) need no API key. A channel is stored by its channel ID, so `@handles` are looked up once through `/sources/resolve` (from the channel page's canonical link) and saving a widget never touches the network for them. If YouTube shows a cookie-consent page instead of the channel (common from EU addresses), the lookup fails with an explanation, and pasting a `/channel/UC...` address works instead. Videos link out to YouTube; nothing is embedded.
 
-**Weather.** [Open-Meteo](https://open-meteo.com/) (no key). Current conditions and five days, cached for 30 minutes per location rounded to about a kilometre. If the service fails, the last cached answer is returned with `stale: true`. The response carries the attribution text the free tier asks for, and the UI must show it. Open-Meteo is free for non-commercial use only.
+**Weather.** [MET Norway](https://api.met.no/) Locationforecast (no key, identifying `User-Agent` required; place search uses Open-Meteo's geocoding). Current conditions and five days, cached for 30 minutes per location rounded to about a kilometre. If the service fails, the last cached answer is returned with `stale: true`. The response carries the credit line MET Norway's licence (CC BY 4.0) asks for, and the UI must show it, linked. Days follow local solar time, because the answer has no timezone.
 
 **Safe HTTP client.** Everything that fetches user-supplied URLs goes through [apps/api/src/lib/http.ts](apps/api/src/lib/http.ts) and [ssrf.ts](apps/api/src/lib/ssrf.ts): only http(s), no credentials, private/local/link-local addresses are blocked (IPv4, IPv6 and IPv4-in-IPv6), redirects are followed by hand and re-checked at every hop, and a connection-time DNS guard stops DNS rebinding. Responses are capped at 2 MB and 10 seconds. Checked live: public feeds load, while `localhost`, `169.254.169.254` and `localtest.me` (a public name that resolves to 127.0.0.1) are refused.
 
@@ -145,7 +145,7 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 3. **Polite fetching.** A clear `User-Agent` with a contact URL, conditional requests (`ETag`, `If-Modified-Since`), sensible intervals (15 to 60 minutes), backoff on errors, and respect for `Retry-After` and `429`.
 4. **Safe by default for user-supplied URLs.** The fetcher will block private and loopback addresses (SSRF), limit response size and time, and sanitize HTML to plain text.
 5. **Spacious, card-like, dark only.** The visual tokens (`canvas`, `card`, `line`, `ink`, `ink-muted`, `accent`) live in [apps/web/src/style.css](apps/web/src/style.css). Navigation stays in a top bar, with dashboards as tabs.
-6. **Source-specific notes.** YouTube links out instead of embedding. Reddit uses public RSS for personal use, and its terms must be re-checked before this becomes multi-user. Open-Meteo (weather) is free for non-commercial use only.
+6. **Source-specific notes.** YouTube links out instead of embedding. Reddit uses public RSS for personal use, and its terms must be re-checked before this becomes multi-user. Open-Meteo (place search) is free for non-commercial use only.
 
 ## Testing approach
 

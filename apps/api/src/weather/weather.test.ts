@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HttpClient, HttpResponse } from '../lib/http'
 import { freshDb, NOW } from '../test/helpers'
 import { ProviderError } from '../providers/errors'
-import { forecastUrl, geocodeUrl, parseForecast, parseGeocoding } from './openMeteo'
+import { forecastUrl, parseForecast } from './metNo'
+import { geocodeUrl, parseGeocoding } from './openMeteo'
 import { cacheKey, getWeather, searchLocations } from './service'
-import { describeWeatherCode } from './wmo'
+import { describeSymbol } from './symbols'
 
 const fixture = (name: string) =>
   readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), 'utf8')
@@ -16,59 +17,57 @@ function respond(body: string, status = 200, headers: Record<string, string> = {
   return { status, headers: { get: (n) => map.get(n.toLowerCase()) ?? null }, url: '', body }
 }
 
-describe('describeWeatherCode', () => {
+describe('describeSymbol', () => {
   it.each([
-    [0, 'clear', 'Clear sky'],
-    [2, 'partly-cloudy', 'Partly cloudy'],
-    [3, 'cloudy', 'Overcast'],
-    [45, 'fog', 'Fog'],
-    [53, 'drizzle', 'Drizzle'],
-    [63, 'rain', 'Rain'],
-    [80, 'rain', 'Light showers'],
-    [75, 'snow', 'Heavy snow'],
-    [95, 'thunder', 'Thunderstorm'],
-  ])('maps code %i to %s', (code, icon, label) => {
-    expect(describeWeatherCode(code)).toEqual({ icon, label })
+    ['clearsky_day', 'clear', 'Clear sky'],
+    ['fair_night', 'clear', 'Mainly clear'],
+    ['partlycloudy_day', 'partly-cloudy', 'Partly cloudy'],
+    ['cloudy', 'cloudy', 'Overcast'],
+    ['fog', 'fog', 'Fog'],
+    ['rain', 'rain', 'Rain'],
+    ['lightrain', 'rain', 'Light rain'],
+    ['heavyrain', 'rain', 'Heavy rain'],
+    ['rainshowers_day', 'rain', 'Showers'],
+    ['lightrainshowers_night', 'rain', 'Light showers'],
+    ['sleet', 'rain', 'Sleet'],
+    ['heavysnow', 'snow', 'Heavy snow'],
+    ['lightsnowshowers_day', 'snow', 'Light snow showers'],
+    ['heavyrainandthunder', 'thunder', 'Thunderstorm'],
+    ['snowshowersandthunder_night', 'thunder', 'Thunderstorm'],
+  ])('maps %s to %s', (code, icon, label) => {
+    expect(describeSymbol(code)).toEqual({ icon, label })
   })
 
   it('does not break on codes it does not know', () => {
-    expect(describeWeatherCode(1234)).toEqual({ icon: 'cloudy', label: 'Unknown' })
+    expect(describeSymbol('aurora')).toEqual({ icon: 'cloudy', label: 'Unknown' })
   })
 })
 
-describe('Open-Meteo URLs', () => {
-  it('asks for the fields we use, in the local timezone, for five days', () => {
-    const url = new URL(forecastUrl(52.37, 4.9, 'metric'))
-    expect(url.origin + url.pathname).toBe('https://api.open-meteo.com/v1/forecast')
-    expect(Object.fromEntries(url.searchParams)).toMatchObject({
-      latitude: '52.37',
-      longitude: '4.9',
-      timezone: 'auto',
-      forecast_days: '5',
-      temperature_unit: 'celsius',
-      current: 'temperature_2m,weather_code,is_day',
-    })
-  })
-
-  it('switches to Fahrenheit for imperial units', () => {
-    expect(new URL(forecastUrl(1, 2, 'imperial')).searchParams.get('temperature_unit')).toBe(
-      'fahrenheit',
+describe('MET Norway URL', () => {
+  it('asks for the compact forecast with four decimals', () => {
+    const url = new URL(forecastUrl(52.37, 4.9))
+    expect(url.origin + url.pathname).toBe(
+      'https://api.met.no/weatherapi/locationforecast/2.0/compact',
     )
+    expect(Object.fromEntries(url.searchParams)).toEqual({ lat: '52.3700', lon: '4.9000' })
   })
+})
 
+describe('geocodeUrl', () => {
   it('encodes the search text', () => {
     expect(new URL(geocodeUrl('São Paulo & co')).searchParams.get('name')).toBe('São Paulo & co')
   })
 })
 
 describe('parseForecast', () => {
-  const snapshot = parseForecast(JSON.parse(fixture('forecast.json')))
+  const json = JSON.parse(fixture('met-forecast.json'))
+  const snapshot = parseForecast(json, 5.52, 'metric')
 
-  it('reads the current conditions', () => {
+  it('reads the current conditions from the first entry', () => {
     expect(snapshot.current).toEqual({
-      temperature: 11,
-      label: 'Overcast',
-      icon: 'cloudy',
+      temperature: 10,
+      label: 'Partly cloudy',
+      icon: 'partly-cloudy',
       isDay: false,
     })
   })
@@ -76,17 +75,27 @@ describe('parseForecast', () => {
   it('reads five forecast days with rounded temperatures', () => {
     expect(snapshot.daily).toHaveLength(5)
     expect(snapshot.daily[0]).toEqual({
-      date: '2026-10-19',
-      min: 10,
-      max: 15,
-      label: 'Drizzle',
-      icon: 'drizzle',
+      date: '2026-10-21',
+      min: 9,
+      max: 10,
+      label: 'Mainly clear',
+      icon: 'clear',
     })
-    expect(snapshot.daily[4]).toMatchObject({ date: '2026-10-23', icon: 'rain' })
+    expect(snapshot.daily[2]).toMatchObject({ date: '2026-10-23', icon: 'rain', label: 'Rain' })
+    expect(snapshot.daily[4]).toMatchObject({ date: '2026-10-25' })
+  })
+
+  it('converts to Fahrenheit for imperial units', () => {
+    expect(parseForecast(json, 5.52, 'imperial').current.temperature).toBe(49)
+  })
+
+  it('works out the day from the longitude', () => {
+    // 21:00 UTC is already the next day this far east.
+    expect(parseForecast(json, 150, 'metric').daily[0]!.date).toBe('2026-10-22')
   })
 
   it('rejects answers that do not look like a forecast', () => {
-    expect(() => parseForecast({ error: true })).toThrow(ProviderError)
+    expect(() => parseForecast({ error: true }, 0, 'metric')).toThrow(ProviderError)
   })
 })
 
@@ -120,22 +129,22 @@ describe('getWeather', () => {
   beforeEach(async () => {
     db = await freshDb()
     clock = NOW
-    get = vi.fn<HttpClient['get']>(async () => respond(fixture('forecast.json')))
+    get = vi.fn<HttpClient['get']>(async () => respond(fixture('met-forecast.json')))
     http = { get }
   })
 
   it('fetches and caches the forecast', async () => {
     const result = await getWeather(deps(), place, 'metric')
     expect(result).toMatchObject({ stale: false, fetchedAt: NOW })
-    expect(result.snapshot.current.temperature).toBe(11)
+    expect(result.snapshot.current.temperature).toBe(10)
     expect(get).toHaveBeenCalledTimes(1)
   })
 
   it('uses rounded coordinates in the request', async () => {
     await getWeather(deps(), place, 'metric')
     const url = new URL(get.mock.calls[0]![0])
-    expect(url.searchParams.get('latitude')).toBe('52.37')
-    expect(url.searchParams.get('longitude')).toBe('4.89')
+    expect(url.searchParams.get('lat')).toBe('52.3700')
+    expect(url.searchParams.get('lon')).toBe('4.8900')
   })
 
   it('serves nearby places and repeat requests from the cache for 30 minutes', async () => {
@@ -166,7 +175,7 @@ describe('getWeather', () => {
     get.mockResolvedValue(respond('', 503))
     const result = await getWeather(deps(), place, 'metric')
     expect(result).toMatchObject({ stale: true, fetchedAt: NOW })
-    expect(result.snapshot.current.temperature).toBe(11)
+    expect(result.snapshot.current.temperature).toBe(10)
   })
 
   it('throws when it fails and there is nothing cached', async () => {

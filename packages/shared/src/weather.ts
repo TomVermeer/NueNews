@@ -29,4 +29,4 @@ export interface GeocodeResult {
   lon: number
 }
 
-export const WEATHER_ATTRIBUTION = 'Weather data by Open-Meteo.com'
+export const WEATHER_ATTRIBUTION = 'Data from MET Norway'

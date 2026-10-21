@@ -52,7 +52,7 @@ export function weatherData(overrides: Partial<WeatherData> = {}): WeatherData {
     ],
     fetchedAt: '2026-02-01T10:00:00.000Z',
     stale: false,
-    attribution: 'Weather data by Open-Meteo.com',
+    attribution: 'Data from MET Norway',
     ...overrides,
   } as WeatherData
 }
