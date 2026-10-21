@@ -51,7 +51,7 @@ Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), 
 - API errors always use `{ error: { code, message } }`; throw `ApiError`/`ProviderError` rather than building responses by hand.
 - Fetchers identify themselves with `USER_AGENT` and must stay polite: conditional requests (ETag), exponential backoff, honour `Retry-After`.
 - Reddit's RSS currently answers `429` for unauthenticated clients. Don't work around it by spoofing a browser; it needs OAuth.
-- Commits end with the co-author trailer in use in this repo's history. The repo is local only (no remote yet).
+- Commits end with the co-author trailer in use in this repo's history.
 
 ## Testing notes
 
@@ -100,4 +100,4 @@ Next, in the order the owner chose:
 2. **Playwright end-to-end tests** for drag, resize, save and add-widget, wired into CI (CI currently runs only lint, format check, typecheck, tests and build).
 3. **Hosting and real authentication** (low-cost, easy to maintain; not chosen yet), then sharing and Postgres.
 
-Known gaps: a **Reddit** preset needs OAuth (unauthenticated RSS gets `429`); import/export of dashboards is not built; the repo has no GitHub remote yet.
+Known gaps: a **Reddit** preset needs OAuth (unauthenticated RSS gets `429`); Reddit is planned after RoyalRoad; import/export of dashboards is not built.

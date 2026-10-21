@@ -17,7 +17,8 @@ describe('YouTubeWidget', () => {
     const wrapper = render({ data: feedData([item]) })
 
     expect(wrapper.text()).toContain('Headline 1')
-    expect(wrapper.text()).toContain('Fireship · 2 h ago')
+    expect(wrapper.text()).toContain('Fireship')
+    expect(wrapper.text()).toContain('2 h ago')
     const link = wrapper.get('a')
     expect(link.attributes()).toMatchObject({
       href: 'https://www.youtube.com/watch?v=abc',
@@ -25,6 +26,23 @@ describe('YouTubeWidget', () => {
       rel: 'noopener noreferrer',
     })
     expect(wrapper.get('img').attributes('referrerpolicy')).toBe('no-referrer')
+  })
+
+  it('groups videos into one row per channel, ordered by latest upload', () => {
+    const items = [
+      feedItem(1, { sourceId: 'a', sourceName: 'Fireship' }),
+      feedItem(2, { sourceId: 'b', sourceName: 'Veritasium' }),
+      feedItem(3, { sourceId: 'a', sourceName: 'Fireship' }),
+    ]
+    const wrapper = render({ data: feedData(items) })
+
+    const rows = wrapper.findAll('section')
+    expect(rows.map((row) => row.get('h3').text())).toEqual(['Fireship', 'Veritasium'])
+    expect(rows[0]!.findAll('li').map((li) => li.text())).toEqual([
+      expect.stringContaining('Headline 1'),
+      expect.stringContaining('Headline 3'),
+    ])
+    expect(rows[1]!.findAll('li')).toHaveLength(1)
   })
 
   it('does not embed a player', () => {
