@@ -6,7 +6,9 @@ import type { FetchContext } from '../types'
 import {
   channelIdFromInput,
   channelIdFromPage,
+  channelUrlFor,
   feedUrlFor,
+  iconFromPage,
   pageUrlFromInput,
   youtubeProvider,
 } from './index'
@@ -197,5 +199,44 @@ describe('fetch', () => {
     const result = await youtubeProvider.fetch(source({ etag: '"yt0"' }), ctx)
     expect(result).toEqual({ status: 'not_modified' })
     expect(get.mock.calls[0]![1]?.headers).toMatchObject({ 'if-none-match': '"yt0"' })
+  })
+})
+
+describe('iconFromPage', () => {
+  it('reads the channel avatar from the og:image tag', () => {
+    expect(iconFromPage(fixture('channel-page.html'))).toBe(
+      'https://yt3.googleusercontent.com/avatar=s900-c-k-c0x00ffffff-no-rj',
+    )
+  })
+
+  it('also works when content comes before property', () => {
+    const html = '<meta content="https://yt3.example.com/a.jpg" property="og:image">'
+    expect(iconFromPage(html)).toBe('https://yt3.example.com/a.jpg')
+  })
+
+  it('ignores pages without an image and images that are not https', () => {
+    expect(iconFromPage('<meta property="og:title" content="x">')).toBeUndefined()
+    expect(iconFromPage('<meta property="og:image" content="http://insecure.example/a.jpg">')).toBe(
+      undefined,
+    )
+    expect(iconFromPage('<meta property="og:image" content="javascript:alert(1)">')).toBe(undefined)
+  })
+})
+
+describe('fetchIcon', () => {
+  const source = { id: 's', kind: 'youtube' as const, key: ID, etag: null, lastModified: null }
+
+  it('downloads the channel page and returns its avatar', async () => {
+    const { ctx } = contextFor({ [channelUrlFor(ID)]: { body: fixture('channel-page.html') } })
+    await expect(youtubeProvider.fetchIcon?.(source, ctx)).resolves.toMatch(
+      /yt3\.googleusercontent/,
+    )
+  })
+
+  it('gives up quietly on the cookie consent wall', async () => {
+    const { ctx } = contextFor({
+      [channelUrlFor(ID)]: { body: '', finalUrl: 'https://consent.youtube.com/m?continue=x' },
+    })
+    await expect(youtubeProvider.fetchIcon?.(source, ctx)).resolves.toBeUndefined()
   })
 })

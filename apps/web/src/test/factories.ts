@@ -12,6 +12,7 @@ export function feedItem(n: number, overrides: Partial<FeedItem> = {}): FeedItem
     publishedAt: '2026-02-01T10:00:00.000Z',
     sourceName: 'Example News',
     sourceUrl: 'https://example.com/',
+    sourceIconUrl: null,
     seen: false,
     read: false,
     ...overrides,
@@ -23,7 +24,14 @@ export function feedData(items: FeedItem[], overrides: Partial<FeedData> = {}): 
     widget: { id: 'w1', type: 'feed', title: 'News' },
     items,
     sources: [
-      { id: 'source-1', title: 'Example News', siteUrl: null, lastFetchedAt: null, error: null },
+      {
+        id: 'source-1',
+        title: 'Example News',
+        siteUrl: null,
+        iconUrl: null,
+        lastFetchedAt: null,
+        error: null,
+      },
     ],
     ...overrides,
   } as FeedData

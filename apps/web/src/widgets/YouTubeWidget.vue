@@ -10,6 +10,8 @@ const emit = defineEmits<{ open: [item: FeedItem] }>()
 interface ChannelRow {
   id: string
   name: string
+  url: string | null
+  iconUrl: string | null
   items: FeedItem[]
 }
 
@@ -26,12 +28,17 @@ function groupByChannel(items: FeedItem[], sources: FeedData['sources']): Channe
     rows.set(item.sourceId, {
       id: item.sourceId,
       name: item.sourceName ?? title ?? 'Unknown channel',
+      url: item.sourceUrl,
+      iconUrl: item.sourceIconUrl,
       items: [item],
     })
   }
   return [...rows.values()]
 }
 
+const channelLink = (url: string | null) =>
+  url ? { href: url, target: '_blank', rel: 'noopener noreferrer' } : {}
+const videoCount = (count: number) => `${count} ${count === 1 ? 'video' : 'videos'}`
 const channels = computed(() => groupByChannel(props.data.items, props.data.sources))
 const failing = computed(() => props.data.sources.filter((source) => source.error))
 </script>
@@ -42,9 +49,39 @@ const failing = computed(() => props.data.sources.filter((source) => source.erro
       No videos yet. New uploads show up after the next fetch.
     </p>
 
-    <section v-for="channel in channels" v-else :key="channel.id" class="mb-4 last:mb-0">
-      <h3 class="mb-2 truncate text-sm font-semibold text-ink">{{ channel.name }}</h3>
-      <ul class="flex gap-3 overflow-x-auto pb-1">
+    <section v-for="channel in channels" v-else :key="channel.id" class="mb-6 last:mb-0">
+      <header class="-mx-4 flex items-center gap-3 border-b border-line px-4 pt-1 pb-2">
+        <component
+          :is="channel.url ? 'a' : 'div'"
+          v-bind="channelLink(channel.url)"
+          class="group flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <img
+            v-if="channel.iconUrl"
+            :src="channel.iconUrl"
+            alt=""
+            loading="lazy"
+            referrerpolicy="no-referrer"
+            class="size-8 shrink-0 rounded-full object-cover"
+          />
+          <span
+            v-else
+            class="grid size-8 shrink-0 place-items-center rounded-full bg-accent/15 text-xs/4 font-medium text-accent"
+            aria-hidden="true"
+          >
+            {{ channel.name.charAt(0).toUpperCase() }}
+          </span>
+          <h3
+            class="min-w-0 flex-1 truncate text-base/6 font-medium text-ink group-hover:text-accent"
+          >
+            {{ channel.name }}
+          </h3>
+        </component>
+        <span class="shrink-0 text-xs/4 font-medium text-ink-muted">
+          {{ videoCount(channel.items.length) }}
+        </span>
+      </header>
+      <ul class="mt-4 flex gap-3 overflow-x-auto pb-1">
         <li v-for="item in channel.items" :key="item.id" class="w-44 shrink-0">
           <a
             :href="item.url"

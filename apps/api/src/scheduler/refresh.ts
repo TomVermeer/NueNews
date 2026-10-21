@@ -35,6 +35,31 @@ function describeError(error: unknown): { message: string; retryAfterSeconds?: n
   return { message: 'Unexpected error' }
 }
 
+/**
+ * Looks up the source's icon once, for providers that can. Never fails the refresh: a missing
+ * icon only means the UI shows a placeholder, and the lookup is retried on the next refresh.
+ */
+async function fillIcon(deps: RefreshDeps, source: SourceRow): Promise<void> {
+  const provider = deps.registry.get(source.kind)
+  if (source.faviconUrl || !provider.fetchIcon) return
+  try {
+    const faviconUrl = await provider.fetchIcon(
+      {
+        id: source.id,
+        kind: source.kind,
+        key: source.key,
+        etag: source.etag,
+        lastModified: source.lastModified,
+      },
+      deps.ctx,
+    )
+    if (!faviconUrl) return
+    deps.db.update(sources).set({ faviconUrl }).where(eq(sources.id, source.id)).run()
+  } catch {
+    // Best effort, see above.
+  }
+}
+
 /** Fetches one source and records the result: items, cache validators, status and next fetch time. */
 export async function refreshSource(
   deps: RefreshDeps,
@@ -73,6 +98,7 @@ export async function refreshSource(
           .where(eq(sources.id, source.id))
           .run()
       })
+      await fillIcon(deps, source)
       return 'ok'
     }
 
@@ -85,6 +111,7 @@ export async function refreshSource(
       })
       .where(eq(sources.id, source.id))
       .run()
+    await fillIcon(deps, source)
     return 'not_modified'
   } catch (error) {
     const { message, retryAfterSeconds } = describeError(error)

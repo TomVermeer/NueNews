@@ -42,4 +42,6 @@ export interface Provider {
   resolve(input: string, ctx: FetchContext): Promise<ResolvedSource>
   /** Fetch the source, using conditional headers from `source` where the origin supports them. */
   fetch(source: SourceRef, ctx: FetchContext): Promise<FetchResult>
+  /** The source's own icon (e.g. a channel avatar), for providers whose feed does not carry one. */
+  fetchIcon?(source: SourceRef, ctx: FetchContext): Promise<string | undefined>
 }

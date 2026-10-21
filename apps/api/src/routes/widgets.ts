@@ -149,6 +149,7 @@ export function widgetRoutes(deps: AppDeps) {
             ...row,
             sourceName: (source && labels.get(source.key)) || source?.title || null,
             sourceUrl: source?.siteUrl ?? null,
+            sourceIconUrl: source?.faviconUrl ?? null,
             seen: seenAt !== null,
             read: readAt !== null,
           }
@@ -157,6 +158,7 @@ export function widgetRoutes(deps: AppDeps) {
           id: source.id,
           title: (labels.get(source.key) ?? source.title) || null,
           siteUrl: source.siteUrl,
+          iconUrl: source.faviconUrl,
           lastFetchedAt: source.lastFetchedAt,
           error: source.errorCount > 0 ? (source.lastStatus ?? 'error') : null,
         })),

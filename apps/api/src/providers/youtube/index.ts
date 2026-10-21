@@ -63,6 +63,20 @@ export function channelIdFromPage(html: string): string | undefined {
   return meta?.[1]
 }
 
+/** The channel avatar the page advertises for sharing (og:image); only https URLs are kept. */
+export function iconFromPage(html: string): string | undefined {
+  const tags = html.match(/<meta[^>]*>/gi) ?? []
+  const tag = tags.find((candidate) => /property=["']og:image["']/i.test(candidate))
+  const content = tag?.match(/content=["']([^"']+)["']/i)?.[1]
+  if (!content) return undefined
+  try {
+    const url = new URL(content)
+    return url.protocol === 'https:' ? url.href : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const youtubeProvider: Provider = {
   kind: 'youtube',
 
@@ -103,4 +117,10 @@ export const youtubeProvider: Provider = {
   },
 
   fetch: (source, ctx) => fetchFeed(feedUrlFor(source.key), source, ctx),
+
+  async fetchIcon(source, ctx) {
+    const page = await download(channelUrlFor(source.key), ctx)
+    if (new URL(page.url).hostname.startsWith('consent.')) return undefined
+    return iconFromPage(page.body)
+  },
 }

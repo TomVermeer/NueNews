@@ -19,7 +19,7 @@ describe('YouTubeWidget', () => {
     expect(wrapper.text()).toContain('Headline 1')
     expect(wrapper.text()).toContain('Fireship')
     expect(wrapper.text()).toContain('2 h ago')
-    const link = wrapper.get('a')
+    const link = wrapper.get('ul a')
     expect(link.attributes()).toMatchObject({
       href: 'https://www.youtube.com/watch?v=abc',
       target: '_blank',
@@ -43,6 +43,44 @@ describe('YouTubeWidget', () => {
       expect.stringContaining('Headline 3'),
     ])
     expect(rows[1]!.findAll('li')).toHaveLength(1)
+    expect(rows[0]!.get('header').text()).toContain('2 videos')
+    expect(rows[1]!.get('header').text()).toContain('1 video')
+    expect(rows[1]!.get('header').text()).not.toContain('1 videos')
+  })
+
+  it('links the channel name to the channel on YouTube', () => {
+    const item = feedItem(1, {
+      sourceName: 'Fireship',
+      sourceUrl: 'https://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA',
+    })
+    const link = render({ data: feedData([item]) }).get('header a')
+
+    expect(link.text()).toContain('Fireship')
+    expect(link.attributes()).toMatchObject({
+      href: 'https://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
+  })
+
+  it('shows the channel avatar, or the first letter when there is none', () => {
+    const withIcon = render({
+      data: feedData([feedItem(1, { sourceIconUrl: 'https://yt3.example/a.jpg' })]),
+    })
+    const avatar = withIcon.get('header img')
+    expect(avatar.attributes('src')).toBe('https://yt3.example/a.jpg')
+    expect(avatar.attributes('referrerpolicy')).toBe('no-referrer')
+
+    const withoutIcon = render({
+      data: feedData([feedItem(1, { sourceName: 'fireship', sourceIconUrl: null })]),
+    })
+    expect(withoutIcon.find('header img').exists()).toBe(false)
+    expect(withoutIcon.get('header span[aria-hidden="true"]').text()).toBe('F')
+  })
+
+  it('does not link a channel whose address is unknown', () => {
+    const wrapper = render({ data: feedData([feedItem(1, { sourceUrl: null })]) })
+    expect(wrapper.find('header a').exists()).toBe(false)
   })
 
   it('does not embed a player', () => {
@@ -54,7 +92,7 @@ describe('YouTubeWidget', () => {
   it('emits open when a video is clicked', async () => {
     const item = feedItem(1)
     const wrapper = render({ data: feedData([item]) })
-    await wrapper.get('a').trigger('click')
+    await wrapper.get('ul a').trigger('click')
     expect(wrapper.emitted('open')).toEqual([[item]])
   })
 
@@ -73,6 +111,7 @@ describe('YouTubeWidget', () => {
             id: 's',
             title: 'Some channel',
             siteUrl: null,
+            iconUrl: null,
             lastFetchedAt: null,
             error: 'error: HTTP 404',
           },

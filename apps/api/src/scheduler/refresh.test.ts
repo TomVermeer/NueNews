@@ -143,6 +143,40 @@ describe('refreshSource', () => {
   })
 })
 
+describe('refreshSource icons', () => {
+  function setupWithIcon(fetchIcon: () => Promise<string | undefined>) {
+    const db = freshDb()
+    const { provider } = fakeProvider({ fetch: () => ({ status: 'ok', items: [item(1)] }) })
+    const registry = makeRegistry({ ...provider, fetchIcon })
+    const { source } = seedSourceWithWidget(db)
+    const row = () => db.select().from(sources).where(eq(sources.id, source.id)).get()!
+    return { deps: { db, registry, ctx: fakeContext() }, source, row }
+  }
+
+  it('stores the icon the provider finds', async () => {
+    const { deps, source, row } = setupWithIcon(async () => 'https://img.example/a.jpg')
+    await refreshSource(deps, source, NOW)
+    expect(row().faviconUrl).toBe('https://img.example/a.jpg')
+  })
+
+  it('looks the icon up only once', async () => {
+    const fetchIcon = vi.fn(async () => 'https://img.example/a.jpg')
+    const { deps, source, row } = setupWithIcon(fetchIcon)
+    await refreshSource(deps, source, NOW)
+    await refreshSource(deps, row(), NOW)
+    expect(fetchIcon).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not fail the refresh when the icon lookup fails', async () => {
+    const { deps, source, row } = setupWithIcon(async () => {
+      throw new Error('boom')
+    })
+    await expect(refreshSource(deps, source, NOW)).resolves.toBe('ok')
+    expect(row().faviconUrl).toBeNull()
+    expect(row().lastStatus).toBe('ok')
+  })
+})
+
 describe('selectDueSources', () => {
   it('returns due, used sources whose provider exists, oldest first', () => {
     const db = freshDb()

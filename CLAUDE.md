@@ -28,6 +28,8 @@ pnpm --filter @nuenews/api db:generate   # new SQL migration after editing apps/
 
 The dev port is 5273 on purpose (see `strictPort` in `apps/web/vite.config.ts`); don't change it back to 5173.
 
+If the dev page is black in the owner's normal Chrome but works in incognito, the cause is a browser extension, not the app: the "TTV AdBlock Plus" extension answered Vite's script requests (`/@vite/client`, `/src/main.ts`) with HTML or raw source. It was removed; check extensions first if it happens again (`chrome.exe --disable-extensions http://localhost:5273` is a quick test).
+
 ## Architecture
 
 Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), `packages/shared` (Zod schemas and types). `shared` has no build step: packages import its TypeScript source directly.
@@ -47,6 +49,7 @@ Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), 
 ## Conventions that matter
 
 - **Headline and handoff** (core product rule): show only what the publisher's feed provides, with excerpts cut to about 200 characters of plain text. Never scrape article bodies or embed content. Every item is a link with `target="_blank" rel="noopener noreferrer"`, thumbnails are hotlinked with `referrerpolicy="no-referrer"`, and the weather widget must show its Open-Meteo attribution.
+  - Owner-approved exception: a YouTube channel's avatar. The feed has none, so the provider's optional `fetchIcon` reads the `og:image` of the channel page once (best effort, https only) and stores it in `sources.favicon_url`; the UI hotlinks it with `referrerpolicy="no-referrer"`. Nothing else is read from that page.
 - Dark mode only, spacious card style; design tokens (`canvas`, `card`, `line`, `ink`, `accent`) are in `apps/web/src/style.css`.
 - API errors always use `{ error: { code, message } }`; throw `ApiError`/`ProviderError` rather than building responses by hand.
 - Fetchers identify themselves with `USER_AGENT` and must stay polite: conditional requests (ETag), exponential backoff, honour `Retry-After`.
@@ -61,7 +64,9 @@ Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), 
 - `grid-layout-plus` ignores drags that start on `<a>`/`<button>` unless `drag-ignore-from` is set; the drag handle is a button.
 
 ## Style Guide
-See [docs/typescript-style.md](docs/typescript-style.md) for typescript coding conventions.
+
+- See [docs/typescript-style.md](docs/typescript-style.md) for typescript coding conventions.
+- See [docs/frontend-style.md](docs/frontend-style.md) for UI conventions, which follow Material Design 3. Follow it for any visual or layout change; the product rules in "Conventions that matter" win where they conflict.
 
 ## Subagents
 
