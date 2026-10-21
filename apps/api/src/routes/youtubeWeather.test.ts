@@ -111,7 +111,7 @@ describe('weather widgets', () => {
 
   it('returns the current weather and forecast with attribution', async () => {
     const get = vi.fn<HttpClient['get']>(async () =>
-      respond(fixture('../weather/__fixtures__/forecast.json')),
+      respond(fixture('../weather/__fixtures__/met-forecast.json')),
     )
     const t = await weatherApp(get)
     const created = await t.call('POST', `/dashboards/${await dashboard(t)}/widgets`, weatherWidget)
@@ -123,9 +123,9 @@ describe('weather widgets', () => {
       widget: { type: 'weather', title: 'Weather' },
       location: { name: 'Amsterdam' },
       units: 'metric',
-      current: { temperature: 11, icon: 'cloudy', isDay: false },
+      current: { temperature: 10, icon: 'partly-cloudy', isDay: false },
       stale: false,
-      attribution: 'Weather data by Open-Meteo.com',
+      attribution: 'Data from MET Norway',
     })
     expect(body.daily).toHaveLength(5)
     expect(await t.db.select().from(weatherCache)).toHaveLength(1)
@@ -133,7 +133,7 @@ describe('weather widgets', () => {
 
   it('serves repeat views from the cache', async () => {
     const get = vi.fn<HttpClient['get']>(async () =>
-      respond(fixture('../weather/__fixtures__/forecast.json')),
+      respond(fixture('../weather/__fixtures__/met-forecast.json')),
     )
     const t = await weatherApp(get)
     const created = await t.call('POST', `/dashboards/${await dashboard(t)}/widgets`, weatherWidget)

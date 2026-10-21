@@ -41,7 +41,7 @@ const weekday = (date: string) =>
     </p>
     <p class="mt-3 text-[11px] text-ink-muted">
       <a
-        href="https://open-meteo.com/"
+        href="https://www.met.no/en"
         target="_blank"
         rel="noopener noreferrer"
         class="hover:text-accent"

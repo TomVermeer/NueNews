@@ -54,7 +54,7 @@ Monorepo: `apps/api` (Hono + Drizzle/PostgreSQL), `apps/web` (Vue 3 + Tailwind v
 
 ## Conventions that matter
 
-- **Headline and handoff** (core product rule): show only what the publisher's feed provides, with excerpts cut to about 200 characters of plain text. Never scrape article bodies or embed content. Every item is a link with `target="_blank" rel="noopener noreferrer"`, thumbnails are hotlinked with `referrerpolicy="no-referrer"`, and the weather widget must show its Open-Meteo attribution.
+- **Headline and handoff** (core product rule): show only what the publisher's feed provides, with excerpts cut to about 200 characters of plain text. Never scrape article bodies or embed content. Every item is a link with `target="_blank" rel="noopener noreferrer"`, thumbnails are hotlinked with `referrerpolicy="no-referrer"`, and the weather widget must show its MET Norway attribution ("Data from MET Norway", linked).
   - Owner-approved exception: a YouTube channel's avatar. The feed has none, so the provider's optional `fetchIcon` reads the `og:image` of the channel page once (best effort, https only) and stores it in `sources.favicon_url`; the UI hotlinks it with `referrerpolicy="no-referrer"`. Nothing else is read from that page.
 - Dark mode only, spacious card style; design tokens (`canvas`, `card`, `line`, `ink`, `accent`) are in `apps/web/src/style.css`.
 - API errors always use `{ error: { code, message } }`; throw `ApiError`/`ProviderError` rather than building responses by hand.
