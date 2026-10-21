@@ -11,18 +11,19 @@ Sizes are rough: **S** is an hour or two, **M** is a session, **L** is several s
 - The scheduler runs inside the API process on timers. It only works while the process is awake.
 - The web app (`apps/web`) is a separate Vite build that proxies `/api` in dev.
 
-## Decisions to confirm first (Step 0)
+## Decisions (Step 0)
 
-| #   | Decision              | Recommendation                                                                                                                                                               |
-| --- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Database              | **Supabase Postgres** (free tier).                                                                                                                                           |
-| 2   | Login                 | **Supabase Auth**, email and password, public sign-ups off, one user created by hand. Free tier covers far more than one user, and the same system handles multi-user later. |
-| 3   | Where the API runs    | Supabase does not host Node servers, so the API needs a host of its own. See Step 4.                                                                                         |
-| 4   | How the web app ships | **Served by the API itself** (one deployable, same origin). That avoids CORS and cookie problems and needs only one free service.                                            |
-| 5   | Test database         | **PGlite** (real Postgres running in-process). Tests stay fast, need no Docker, and behave like production.                                                                  |
-| 6   | Existing local data   | Keep dashboards, widgets and sources through a one-off import script. Cached items can be dropped, because the scheduler refetches them.                                     |
+Use case: a dashboard reachable from anywhere, used by the owner and maybe a few friends or colleagues trying it out. It has to be free and easy to manage.
 
-Free-tier terms below come from third-party summaries, not the vendors' own pages. Confirm them on the official pricing pages before relying on them.
+| #   | Decision              | Outcome                                                                                                                                                                                                                  |
+| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Database              | **Supabase Postgres** (free tier). Chosen.                                                                                                                                                                               |
+| 2   | Login                 | **Supabase Auth**: email and password, public sign-ups off, accounts created by invitation. Handles the owner now and a few testers later. Chosen.                                                                       |
+| 3   | Where the API runs    | **Render free web service**, running the API, the scheduler and the web build as one service. Chosen after researching the alternatives (see Step 4).                                                                    |
+| 4   | How the web app ships | **Served by the API itself** (one deployable, same origin). That avoids CORS and cookie problems and needs only one free service.                                                                                        |
+| 5   | Test database         | **PGlite** (real Postgres running in-process). Tests stay fast, need no Docker, and behave like production.                                                                                                              |
+| 6   | Existing local data   | Imported into the dev database with the importer from Step 1; the same script loads it into Supabase.                                                                                                                    |
+| 7   | Agent tooling         | Both vendors have an official MCP server: [Render](https://render.com/docs/mcp-server) (services, env vars, deploys, logs) and [Supabase](https://supabase.com/docs/guides/getting-started/mcp) (SQL, migrations, logs). |
 
 ## Step 1: Move the database to PostgreSQL (size L) — done, except the hosted database
 
@@ -57,55 +58,61 @@ Done when: nothing under `/api/v1` answers without a valid session, only you can
 5. **Backups and export (M).** Supabase's free tier has no point-in-time recovery (verify), so schedule a weekly `pg_dump` in GitHub Actions and store it as a private artifact, and build the dashboard import/export that is already on the known-gaps list.
 6. **Basic monitoring (S).** An uptime check on `/health` and readable logs. The in-app source errors already show failing feeds.
 
-## Step 4: Choose a host and deploy (size M)
+## Step 4: Deploy (size M)
 
-Supabase covers the database and login. Only the Node API (with its scheduler) needs a home.
+**Decided: Render (API, scheduler and web build) plus Supabase (database and login).** Research on 2026-10-21 used official vendor pages. Summary of why the others lost:
 
-| Option                                             | Cost                    | Works with our code                              | Catches                                                                                                                              |
-| -------------------------------------------------- | ----------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **A. Render free web service** (recommended start) | Free, no card reported  | Yes, as a Node or Docker service                 | Sleeps when idle; the first request takes about a minute. Needs the external cron from Step 3. Free-tier terms need checking.        |
-| B. Always-free VM (e.g. Oracle Cloud)              | Free, card for sign-up  | Yes, always on, so the scheduler works unchanged | You run the server: updates, TLS (Caddy), firewall. Availability of free capacity varies; verify before choosing.                    |
-| C. Koyeb free instance                             | Reported free           | Yes                                              | Reported by one source only; verify.                                                                                                 |
-| D. Cloudflare Workers                              | Free, 100k requests/day | No, not without a rewrite                        | The API relies on Node-specific pieces (`undici`, the SSRF guard's DNS checks, in-process timers) and free CPU time is tiny (10 ms). |
-| Fly.io, Railway                                    | Trial only, per sources | Yes                                              | No lasting free tier, so they break the "no payment" goal.                                                                           |
+| Option                    | Verdict                                                                                                                                                                                                                                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Render + Supabase**     | Chosen. Free, mature, one deployable service, two official MCP servers. Sleeps when idle (see trade-offs).                                                                                                                                                                                           |
+| Neon all-in-one           | Postgres, login and functions on one free plan with no card, but Functions are in beta, do not host websites (so the web app needs a second host), and several things were not verifiable: outbound HTTP and DNS inside a function, and email/password login with sign-ups off. Worth a spike later. |
+| Oracle Always Free VM     | Always on, but you run the server (updates, TLS, firewall), a card is likely needed and capacity varies.                                                                                                                                                                                             |
+| Supabase Edge Functions   | Not a fit for the API: 2 s CPU, 256 MB, Deno.                                                                                                                                                                                                                                                        |
+| Cloudflare, Fly.io, Koyeb | Workers need a rewrite (10 ms CPU free), Containers are paid, Fly.io has no free tier, Koyeb needs a card and its free Postgres is time-limited.                                                                                                                                                     |
+| Vercel                    | Functions only, and cron runs once a day, so it cannot refresh feeds.                                                                                                                                                                                                                                |
 
-**Recommendation:** Supabase (database and login) with Option A for the API and web app together. If sleeping or the cold start annoys you, move to Option B later. Nothing in Steps 1 to 3 locks us in, because the app is a plain Node container.
+Render facts that shape the work:
+
+- The free web service spins down after 15 minutes without traffic and wakes in about a minute. It has 750 free instance hours a month, so exactly one always-awake service fits (744 hours).
+- Render may ask for a card at signup. Its own docs do not require one, but its pricing page and staff say verification may. Confirm at signup.
+- Do not use Render's free Postgres: it expires after 30 days.
+- Supabase's direct database connection is IPv6-only. Use the **session-mode pooler on port 5432**, which is IPv4.
+- A free Supabase project pauses after a week without activity. The scheduler's regular database use keeps it active.
 
 Steps:
 
-1. Create the Supabase project and apply the baseline migration.
-2. Import your data with the script from Step 1.
-3. Create the host service from the GitHub repo and set the environment variables.
-4. Deploy, then run the smoke test: log in, dashboards and widgets load, a refresh works, a refused (non-logged-in) request returns `401`, `/health` answers.
-5. Add the cron trigger and confirm sources refresh while the site sleeps.
+1. Create the Supabase project (database and Auth). Apply the migrations by starting the API against it once. Turn public sign-ups off and create the owner's user.
+2. Import your data with `db:import-sqlite -- <file> --user-id <the Supabase user id>`.
+3. Create the Render web service from the GitHub repo, set the environment variables, and connect auto-deploy.
+4. Deploy, then run the smoke test: log in, dashboards and widgets load, a refresh works, a request without a session returns `401`, `/health` answers.
+5. Add the cron (GitHub Actions or cron-job.org) calling the guarded tick endpoint every 15 minutes. This both refreshes sources and keeps the service awake. Confirm sources refresh while nobody is using the site.
 6. Optional: a custom domain.
 
 Known free-tier trade-offs to accept for now:
 
-- Supabase pauses free projects after about a week with no activity, and restoring is manual. Regular use or the scheduler's database queries should prevent it, but verify.
-- Free database is about 500 MB. Items are pruned to 100 per source, so a personal dashboard stays well below that.
-- A sleeping host means a slow first load after idle time.
+- The first visit after a long idle can take about a minute to load. With the 15 minute cron the service stays awake almost all the time.
+- The Supabase free database is about 500 MB and has no automatic backups, so Step 3 adds a weekly export. Items are pruned to 100 per source, so a personal dashboard stays well below the size limit.
+- Free-tier terms can change; recheck them if something stops working.
 
 ## Open questions
 
-- Which email should the one account use?
+- Which email should the owner's account use? (Needed for Step 2.)
 - Do you want a custom domain now or later?
-- Is a roughly one-minute wake-up after idle acceptable, or should Option B (always-on VM) be the starting point?
-- Should the old local data be imported, or start with a clean database?
+- Which friends or colleagues will get an account, and is invite-only enough? (Step 2 can create invitations later.)
 
 ## Order and dependencies
 
 ```
-Step 0 decisions
+Step 0 decisions (done)
    └─ Step 1 Postgres ── Step 2 Auth ── Step 3 Deployable ── Step 4 Host and deploy
 ```
 
 Steps 1.3 (async data layer) and 2.2 (token middleware) are the riskiest. Commit after each numbered item, with the test suite green.
 
-## Sources (third-party, to verify)
+## Sources (checked 2026-10-21)
 
-- [Supabase pricing and limits, 2026 guide](https://www.jetadmin.io/blog/supabase-pricing-2026-guide-to-plans-limits-and-real-world-costs/)
-- [Supabase free tier limits in 2026](https://automationatlas.io/answers/supabase-free-tier-limits-2026/)
-- [Hosting free tiers side by side, September 2026](https://flaviocopes.com/hosting-free-tiers/)
-- [Render's overview of free tiers](https://render.com/articles/platforms-with-a-real-free-tier-for-developers-in-2026.md)
-- [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits)
+- [Render free tier](https://render.com/docs/free) and [Render MCP server](https://render.com/docs/mcp-server)
+- [Supabase pricing](https://supabase.com/pricing), [connecting to Postgres](https://supabase.com/docs/guides/database/connecting-to-postgres) and [Supabase MCP](https://supabase.com/docs/guides/getting-started/mcp)
+- [Neon pricing](https://neon.com/pricing) and [Neon Functions overview](https://neon.com/docs/compute/functions/overview)
+- [Oracle Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/resourceref.htm)
+- [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
