@@ -4,7 +4,7 @@ import { createTestApp } from '../test/helpers'
 
 describe('POST /sources/resolve', () => {
   it('returns the canonical source for what the user typed', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       resolve: async (input) => ({
         kind: 'rss',
         key: `https://${input}/feed.xml`,
@@ -19,7 +19,7 @@ describe('POST /sources/resolve', () => {
   })
 
   it('reports problems with the address as a 422 the user can act on', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       resolve: async () => {
         throw new ProviderError('No RSS or Atom feed found at this address')
       },
@@ -33,14 +33,14 @@ describe('POST /sources/resolve', () => {
   })
 
   it('says when a kind has no provider yet', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const res = await t.call('POST', '/sources/resolve', { kind: 'royalroad', input: '12345' })
     expect(res.status).toBe(422)
     expect(res.body.error.code).toBe('source_kind_unavailable')
   })
 
   it('validates the request', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     expect((await t.call('POST', '/sources/resolve', { kind: 'rss' })).status).toBe(400)
     expect((await t.call('POST', '/sources/resolve', { kind: 'nope', input: 'x' })).status).toBe(
       400,

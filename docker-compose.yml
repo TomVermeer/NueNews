@@ -1,0 +1,19 @@
+# Optional: a real Postgres for local development. Without it, `pnpm dev` uses PGlite (Postgres
+# running inside the API process, data in apps/api/data/pglite) and needs nothing installed.
+#
+#   docker compose up -d
+#   DATABASE_URL=postgres://nuenews:nuenews@localhost:5432/nuenews pnpm dev
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: nuenews
+      POSTGRES_PASSWORD: nuenews
+      POSTGRES_DB: nuenews
+    ports:
+      - '5432:5432'
+    volumes:
+      - nuenews-postgres:/var/lib/postgresql/data
+
+volumes:
+  nuenews-postgres:

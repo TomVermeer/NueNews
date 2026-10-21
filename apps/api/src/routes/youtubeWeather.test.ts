@@ -7,7 +7,7 @@ import { createTestApp, fakeContext, item, NOW } from '../test/helpers'
 const CHANNEL = 'UCsBjURrPoezykLs9EqgamOA'
 const fixture = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
-async function dashboard(t: ReturnType<typeof createTestApp>) {
+async function dashboard(t: Awaited<ReturnType<typeof createTestApp>>) {
   return (await t.call('POST', '/dashboards', { name: 'Home' })).body.id as string
 }
 
@@ -19,7 +19,7 @@ const youtubeWidget = (channels: { input: string; label?: string }[]) => ({
 
 describe('YouTube widgets', () => {
   it('creates a widget from channel IDs and addresses, as one source per channel', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       fetch: (source) => ({
         status: 'ok',
         items: [item(1, { externalId: `${source.key}-v1`, title: 'A video' })],
@@ -39,7 +39,7 @@ describe('YouTube widgets', () => {
 
     expect(res.status).toBe(201)
     expect(res.body.layout).toEqual({ x: 0, y: 0, w: 6, h: 5 })
-    const rows = t.db.select().from(sources).all()
+    const rows = await t.db.select().from(sources)
     expect(rows.map((r) => [r.kind, r.key]).sort()).toEqual([
       ['youtube', 'UCabcdefghijklmnopqrstuv'],
       ['youtube', CHANNEL],
@@ -48,7 +48,7 @@ describe('YouTube widgets', () => {
   })
 
   it('asks the user to resolve handles first, because it will not look them up while saving', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await dashboard(t)
     const res = await t.call(
       'POST',
@@ -62,7 +62,7 @@ describe('YouTube widgets', () => {
   })
 
   it('returns videos with the label you gave each channel', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       fetch: () => ({
         status: 'ok',
         items: [item(3, { externalId: 'v3', title: 'Newest video' })],
@@ -83,7 +83,7 @@ describe('YouTube widgets', () => {
   })
 
   it('can be resolved through /sources/resolve', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       resolve: async (input) => ({ kind: 'youtube', key: CHANNEL, title: `Resolved ${input}` }),
     })
     const res = await t.call('POST', '/sources/resolve', { kind: 'youtube', input: '@Fireship' })
@@ -92,8 +92,8 @@ describe('YouTube widgets', () => {
 })
 
 describe('weather widgets', () => {
-  function weatherApp(get: HttpClient['get']) {
-    return createTestApp({}, { fetchContext: { ...fakeContext(), http: { get } } })
+  async function weatherApp(get: HttpClient['get']) {
+    return await createTestApp({}, { fetchContext: { ...fakeContext(), http: { get } } })
   }
 
   const respond = (body: string, status = 200) => ({
@@ -113,7 +113,7 @@ describe('weather widgets', () => {
     const get = vi.fn<HttpClient['get']>(async () =>
       respond(fixture('../weather/__fixtures__/forecast.json')),
     )
-    const t = weatherApp(get)
+    const t = await weatherApp(get)
     const created = await t.call('POST', `/dashboards/${await dashboard(t)}/widgets`, weatherWidget)
 
     const { status, body } = await t.call('GET', `/widgets/${created.body.id}/data`)
@@ -128,14 +128,14 @@ describe('weather widgets', () => {
       attribution: 'Weather data by Open-Meteo.com',
     })
     expect(body.daily).toHaveLength(5)
-    expect(t.db.select().from(weatherCache).all()).toHaveLength(1)
+    expect(await t.db.select().from(weatherCache)).toHaveLength(1)
   })
 
   it('serves repeat views from the cache', async () => {
     const get = vi.fn<HttpClient['get']>(async () =>
       respond(fixture('../weather/__fixtures__/forecast.json')),
     )
-    const t = weatherApp(get)
+    const t = await weatherApp(get)
     const created = await t.call('POST', `/dashboards/${await dashboard(t)}/widgets`, weatherWidget)
     await t.call('GET', `/widgets/${created.body.id}/data`)
     await t.call('GET', `/widgets/${created.body.id}/data`)
@@ -143,7 +143,7 @@ describe('weather widgets', () => {
   })
 
   it('reports an unavailable weather service as a 422 the UI can show', async () => {
-    const t = weatherApp(async () => respond('', 500))
+    const t = await weatherApp(async () => respond('', 500))
     const created = await t.call('POST', `/dashboards/${await dashboard(t)}/widgets`, weatherWidget)
     const { status, body } = await t.call('GET', `/widgets/${created.body.id}/data`)
     expect(status).toBe(422)
@@ -151,7 +151,7 @@ describe('weather widgets', () => {
   })
 
   it('validates coordinates and units', async () => {
-    const t = weatherApp(async () => respond('{}'))
+    const t = await weatherApp(async () => respond('{}'))
     const id = await dashboard(t)
     const badLat = await t.call('POST', `/dashboards/${id}/widgets`, {
       ...weatherWidget,
@@ -178,7 +178,7 @@ describe('GET /geocode', () => {
     const get = vi.fn<HttpClient['get']>(async () =>
       respond(fixture('../weather/__fixtures__/geocoding.json')),
     )
-    const t = createTestApp({}, { fetchContext: { ...fakeContext(), http: { get } } })
+    const t = await createTestApp({}, { fetchContext: { ...fakeContext(), http: { get } } })
     const { status, body } = await t.call('GET', '/geocode?q=Amsterdam')
     expect(status).toBe(200)
     expect(body.results[0]).toMatchObject({
@@ -190,13 +190,13 @@ describe('GET /geocode', () => {
   })
 
   it('needs a query of at least two characters', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     expect((await t.call('GET', '/geocode')).status).toBe(400)
     expect((await t.call('GET', '/geocode?q=a')).status).toBe(400)
   })
 
   it('reports service failures', async () => {
-    const t = createTestApp(
+    const t = await createTestApp(
       {},
       { fetchContext: { ...fakeContext(), http: { get: async () => respond('', 500) } } },
     )

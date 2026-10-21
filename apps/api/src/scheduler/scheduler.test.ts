@@ -10,14 +10,16 @@ import {
   seedSourceWithWidget,
 } from '../test/helpers'
 import { createScheduler, groupByHost } from './scheduler'
+import { onlyRow } from '../db/query'
 
-function addSource(db: Db, widgetId: string, key: string) {
-  const source = db
-    .insert(sources)
-    .values({ kind: 'rss', key, nextFetchAt: new Date(NOW.getTime() - 1000) })
-    .returning()
-    .get()
-  db.insert(widgetSources).values({ widgetId, sourceId: source.id }).run()
+async function addSource(db: Db, widgetId: string, key: string) {
+  const source = onlyRow(
+    await db
+      .insert(sources)
+      .values({ kind: 'rss', key, nextFetchAt: new Date(NOW.getTime() - 1000) })
+      .returning(),
+  )
+  await db.insert(widgetSources).values({ widgetId, sourceId: source.id })
   return source
 }
 
@@ -26,12 +28,12 @@ afterEach(() => {
 })
 
 describe('groupByHost', () => {
-  it('puts sources of the same site together', () => {
-    const db = freshDb()
-    const { widget } = seedSourceWithWidget(db)
-    const a = addSource(db, widget.id, 'https://a.example/1.xml')
-    const b = addSource(db, widget.id, 'https://a.example/2.xml')
-    const c = addSource(db, widget.id, 'https://c.example/feed')
+  it('puts sources of the same site together', async () => {
+    const db = await freshDb()
+    const { widget } = await seedSourceWithWidget(db)
+    const a = await addSource(db, widget.id, 'https://a.example/1.xml')
+    const b = await addSource(db, widget.id, 'https://a.example/2.xml')
+    const c = await addSource(db, widget.id, 'https://c.example/feed')
     const groups = groupByHost([a, b, c])
     expect(groups.map((g) => g.map((s) => s.key))).toEqual([
       ['https://a.example/1.xml', 'https://a.example/2.xml'],
@@ -42,10 +44,10 @@ describe('groupByHost', () => {
 
 describe('createScheduler.tick', () => {
   it('refreshes every due source and reports how many', async () => {
-    const db = freshDb()
+    const db = await freshDb()
     const { provider, fetch } = fakeProvider()
-    const { widget } = seedSourceWithWidget(db)
-    addSource(db, widget.id, 'https://other.example/feed')
+    const { widget } = await seedSourceWithWidget(db)
+    await addSource(db, widget.id, 'https://other.example/feed')
 
     const scheduler = createScheduler({
       db,
@@ -62,10 +64,10 @@ describe('createScheduler.tick', () => {
   })
 
   it('never fetches from the same host in parallel', async () => {
-    const db = freshDb()
-    const { widget } = seedSourceWithWidget(db)
-    addSource(db, widget.id, 'https://example.com/second.xml')
-    addSource(db, widget.id, 'https://other.example/feed')
+    const db = await freshDb()
+    const { widget } = await seedSourceWithWidget(db)
+    await addSource(db, widget.id, 'https://example.com/second.xml')
+    await addSource(db, widget.id, 'https://other.example/feed')
 
     let active = 0
     const activeByHost = new Map<string, number>()
@@ -95,9 +97,9 @@ describe('createScheduler.tick', () => {
   })
 
   it('keeps going when one source fails', async () => {
-    const db = freshDb()
-    const { widget } = seedSourceWithWidget(db, { key: 'https://bad.example/feed' })
-    addSource(db, widget.id, 'https://good.example/feed')
+    const db = await freshDb()
+    const { widget } = await seedSourceWithWidget(db, { key: 'https://bad.example/feed' })
+    await addSource(db, widget.id, 'https://good.example/feed')
     const seen: string[] = []
     const { provider } = fakeProvider({
       fetch: (source) => {
@@ -119,8 +121,8 @@ describe('createScheduler.tick', () => {
   })
 
   it('does not start a second pass while one is running', async () => {
-    const db = freshDb()
-    seedSourceWithWidget(db)
+    const db = await freshDb()
+    await seedSourceWithWidget(db)
     let release!: () => void
     const gate = new Promise<void>((resolve) => (release = resolve))
     const { provider, fetch } = fakeProvider({
@@ -141,10 +143,10 @@ describe('createScheduler.tick', () => {
   })
 
   it('ignores widgets and dashboards that no longer exist', async () => {
-    const db = freshDb()
-    const { dashboard } = seedSourceWithWidget(db)
-    db.delete(widgets).run()
-    db.delete(dashboards).run()
+    const db = await freshDb()
+    const { dashboard } = await seedSourceWithWidget(db)
+    await db.delete(widgets)
+    await db.delete(dashboards)
     expect(dashboard).toBeDefined()
     const { provider, fetch } = fakeProvider()
     const scheduler = createScheduler({
@@ -161,8 +163,8 @@ describe('createScheduler.tick', () => {
 describe('createScheduler.start / stop', () => {
   it('polls immediately and then on an interval, until stopped', async () => {
     vi.useFakeTimers()
-    const db = freshDb()
-    seedSourceWithWidget(db, { intervalMin: 0, nextFetchAt: new Date(0) })
+    const db = await freshDb()
+    await seedSourceWithWidget(db, { intervalMin: 0, nextFetchAt: new Date(0) })
     const { provider, fetch } = fakeProvider()
     const scheduler = createScheduler({
       db,

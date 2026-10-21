@@ -9,11 +9,12 @@ import { youtubeProvider } from './providers/youtube'
 import { createScheduler } from './scheduler/scheduler'
 
 const port = Number(process.env.PORT ?? 3000)
-const databasePath = process.env.DATABASE_PATH ?? './data/nuenews.sqlite'
+// A postgres:// URL for a real server; anything else is a folder for local PGlite data.
+const databaseLocation = process.env.DATABASE_URL ?? './data/pglite'
 const userAgent = process.env.USER_AGENT ?? 'NueNews/0.1 (personal dashboard)'
 
-const db = createDb(databasePath)
-const userId = ensureLocalUser(db)
+const { db, close: closeDb } = await createDb(databaseLocation)
+const userId = await ensureLocalUser(db)
 
 const registry = createRegistry([rssProvider, youtubeProvider])
 const fetchContext = { http: createDefaultHttpClient(userAgent), now: () => new Date() }
@@ -31,12 +32,14 @@ const scheduler = createScheduler({ db, registry, ctx: fetchContext })
 scheduler.start()
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`API listening on http://localhost:${info.port} (database: ${databasePath})`)
+  const database = /^postgres(ql)?:\/\//i.test(databaseLocation) ? 'PostgreSQL' : databaseLocation
+  console.log(`API listening on http://localhost:${info.port} (database: ${database})`)
 })
 
 function shutdown() {
   scheduler.stop()
   server.close()
+  void closeDb()
 }
 process.on('SIGINT', shutdown)
 process.on('SIGTERM', shutdown)

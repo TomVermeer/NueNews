@@ -16,7 +16,7 @@ export async function refreshSourcesNow(
   if (sourceIds.length === 0) return { refreshed: 0, skipped: 0 }
 
   const now = deps.now()
-  const rows = deps.db.select().from(sources).where(inArray(sources.id, sourceIds)).all()
+  const rows = await deps.db.select().from(sources).where(inArray(sources.id, sourceIds))
   const cutoff = now.getTime() - deps.minRefreshIntervalSec * 1000
   const fresh = (row: (typeof rows)[number]) =>
     row.lastFetchedAt && row.lastFetchedAt.getTime() > cutoff

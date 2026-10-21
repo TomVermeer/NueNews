@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { SourceKind, WidgetType } from '@nuenews/shared'
 import { feedConfigSchema, youtubeConfigSchema } from '@nuenews/shared'
 import type { Db } from '../db/client'
+import { firstRow, onlyRow } from '../db/query'
 import { dashboards, sources, widgetSources, widgets } from '../db/schema'
 import { ApiError } from '../http'
 import { checkUrl } from '../lib/ssrf'
@@ -65,78 +66,83 @@ export function sourceLabels(type: WidgetType, config: unknown): Map<string, str
 }
 
 /** Makes the widget's source links match `refs`, creating any sources that are new. */
-export function linkWidgetSources(
+export async function linkWidgetSources(
   db: Db,
   widgetId: string,
   refs: SourceRef[],
   now: Date,
-): { sourceIds: string[]; newSourceIds: string[] } {
+): Promise<{ sourceIds: string[]; newSourceIds: string[] }> {
   const sourceIds: string[] = []
   const newSourceIds: string[] = []
 
   for (const ref of refs) {
-    const created = db
-      .insert(sources)
-      .values({ kind: ref.kind, key: ref.key, nextFetchAt: now })
-      .onConflictDoNothing({ target: [sources.kind, sources.key] })
-      .returning({ id: sources.id })
-      .get()
+    const created = firstRow(
+      await db
+        .insert(sources)
+        .values({ kind: ref.kind, key: ref.key, nextFetchAt: now })
+        .onConflictDoNothing({ target: [sources.kind, sources.key] })
+        .returning({ id: sources.id }),
+    )
     const id =
       created?.id ??
-      db
-        .select({ id: sources.id })
-        .from(sources)
-        .where(and(eq(sources.kind, ref.kind), eq(sources.key, ref.key)))
-        .get()!.id
+      onlyRow(
+        await db
+          .select({ id: sources.id })
+          .from(sources)
+          .where(and(eq(sources.kind, ref.kind), eq(sources.key, ref.key))),
+      ).id
     sourceIds.push(id)
     if (created) newSourceIds.push(id)
   }
 
-  const current = db
-    .select({ sourceId: widgetSources.sourceId })
-    .from(widgetSources)
-    .where(eq(widgetSources.widgetId, widgetId))
-    .all()
-    .map((row) => row.sourceId)
+  const current = (
+    await db
+      .select({ sourceId: widgetSources.sourceId })
+      .from(widgetSources)
+      .where(eq(widgetSources.widgetId, widgetId))
+  ).map((row) => row.sourceId)
 
   const stale = current.filter((id) => !sourceIds.includes(id))
   if (stale.length > 0) {
-    db.delete(widgetSources)
+    await db
+      .delete(widgetSources)
       .where(and(eq(widgetSources.widgetId, widgetId), inArray(widgetSources.sourceId, stale)))
-      .run()
   }
   for (const sourceId of sourceIds.filter((id) => !current.includes(id))) {
-    db.insert(widgetSources).values({ widgetId, sourceId }).run()
+    await db.insert(widgetSources).values({ widgetId, sourceId })
   }
 
   return { sourceIds, newSourceIds }
 }
 
 /** The next free spot: left edge, below everything already on the dashboard. */
-export function nextFreeY(db: Db, dashboardId: string): number {
-  const row = db
-    .select({ bottom: sql<number>`coalesce(max(${widgets.y} + ${widgets.h}), 0)` })
-    .from(widgets)
-    .where(eq(widgets.dashboardId, dashboardId))
-    .get()
+export async function nextFreeY(db: Db, dashboardId: string): Promise<number> {
+  const row = firstRow(
+    await db
+      .select({ bottom: sql<number>`coalesce(max(${widgets.y} + ${widgets.h}), 0)::int` })
+      .from(widgets)
+      .where(eq(widgets.dashboardId, dashboardId)),
+  )
   return row?.bottom ?? 0
 }
 
-export function ownedDashboard(db: Db, userId: string, id: string) {
-  return db
-    .select()
-    .from(dashboards)
-    .where(and(eq(dashboards.id, id), eq(dashboards.userId, userId)))
-    .get()
+export async function ownedDashboard(db: Db, userId: string, id: string) {
+  return firstRow(
+    await db
+      .select()
+      .from(dashboards)
+      .where(and(eq(dashboards.id, id), eq(dashboards.userId, userId))),
+  )
 }
 
-export function ownedWidget(db: Db, userId: string, id: string) {
-  return db
-    .select({ widget: widgets })
-    .from(widgets)
-    .innerJoin(dashboards, eq(dashboards.id, widgets.dashboardId))
-    .where(and(eq(widgets.id, id), eq(dashboards.userId, userId)))
-    .get()?.widget
+export async function ownedWidget(db: Db, userId: string, id: string) {
+  return firstRow(
+    await db
+      .select({ widget: widgets })
+      .from(widgets)
+      .innerJoin(dashboards, eq(dashboards.id, widgets.dashboardId))
+      .where(and(eq(widgets.id, id), eq(dashboards.userId, userId))),
+  )?.widget
 }
 
 export function toWidgetDto(widget: typeof widgets.$inferSelect) {

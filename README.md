@@ -40,11 +40,11 @@ Other commands, run from the repo root:
 
 The API reads these environment variables (all optional):
 
-| Variable        | Default                            | Purpose                                                                          |
-| --------------- | ---------------------------------- | -------------------------------------------------------------------------------- |
-| `PORT`          | `3000`                             | API port                                                                         |
-| `DATABASE_PATH` | `./data/nuenews.sqlite`            | SQLite file (relative to `apps/api`)                                             |
-| `USER_AGENT`    | `NueNews/0.1 (personal dashboard)` | Sent with every feed request. Put a contact URL in it if you host this publicly. |
+| Variable       | Default                            | Purpose                                                                                   |
+| -------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `PORT`         | `3000`                             | API port                                                                                  |
+| `DATABASE_URL` | unset                              | `postgres://…` for a real server; unset uses a local PGlite folder `apps/api/data/pglite` |
+| `USER_AGENT`   | `NueNews/0.1 (personal dashboard)` | Sent with every feed request. Put a contact URL in it if you host this publicly.          |
 
 ## API
 
@@ -92,7 +92,7 @@ Gotcha worth knowing: grid-layout-plus ignores drags that start on a `<a>` or `<
 - Backend: Hono on Node (served with `@hono/node-server`, run in development with `tsx`).
 - Validation: Zod.
 - Tests: Vitest in every package, Vue Test Utils and happy-dom for components.
-- Planned: SQLite with Drizzle ORM, Pinia, Vue Router, TanStack Query, `grid-layout-plus`, MSW and Playwright.
+- Planned: PostgreSQL with Drizzle ORM, Pinia, Vue Router, TanStack Query, `grid-layout-plus`, MSW and Playwright.
 
 ## Repository layout
 
@@ -116,7 +116,7 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 
 **The app is separate from the server.** [app.ts](apps/api/src/app.ts) builds and exports the Hono app, and [index.ts](apps/api/src/index.ts) only starts the HTTP server. Tests call `app.request()` directly with no port and no network.
 
-**The browser never talks to third-party sites.** The backend will fetch, normalize and cache every feed in SQLite. This avoids CORS problems, keeps API keys off the client, and lets one fetch serve every widget (and later every user). In development, Vite proxies `/api` to the API on port 3000, so the web app uses same-origin paths.
+**The browser never talks to third-party sites.** The backend will fetch, normalize and cache every feed in PostgreSQL. This avoids CORS problems, keeps API keys off the client, and lets one fetch serve every widget (and later every user). In development, Vite proxies `/api` to the API on port 3000, so the web app uses same-origin paths.
 
 **Providers and widgets are plugins.**
 
@@ -128,7 +128,7 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 
 **Ready for multiple users, without building them yet.** Version 1 has no login and runs as one seeded local user, but every user-owned table carries a `user_id` from the start, so adding real authentication later will not need a data migration. Shared data (sources, cached items) has no `user_id`, so one fetch serves everyone.
 
-**Database.** SQLite through Drizzle ORM (`better-sqlite3`): zero setup, a single file to back up, and a clear path to Postgres later. The schema is in [apps/api/src/db/schema.ts](apps/api/src/db/schema.ts) and SQL migrations live in `apps/api/drizzle/`. Migrations are applied automatically when the API starts. The database file defaults to `apps/api/data/nuenews.sqlite` (git-ignored); set `DATABASE_PATH` to change it. Tests use in-memory databases. Shared tables (`sources`, `items`, `weather_cache`) have no `user_id`; user-owned tables (`dashboards`, `widgets`, `item_state`, ...) do, and v1 seeds a single `local` user.
+**Database.** PostgreSQL through Drizzle ORM. Production connects to a server with `DATABASE_URL` (node-postgres). Development and tests use [PGlite](https://pglite.dev), real Postgres running inside the process, so nothing needs installing: with no `DATABASE_URL` the API keeps its data in `apps/api/data/pglite` (git-ignored). `docker-compose.yml` starts a regular Postgres if you prefer one. The schema is in [apps/api/src/db/schema.ts](apps/api/src/db/schema.ts) and SQL migrations live in `apps/api/drizzle/`; they are applied automatically when the API starts, and row-level security is on for every table. Ids are text so a malformed id in a URL is a 404, not a database error. `pnpm --filter @nuenews/api db:import-sqlite -- <file>` copies an old SQLite database over. Shared tables (`sources`, `items`, `weather_cache`) have no `user_id`; user-owned tables (`dashboards`, `widgets`, `item_state`, ...) do, and v1 seeds a single `local` user.
 
 **Provider interface.** [apps/api/src/providers/types.ts](apps/api/src/providers/types.ts) defines `Provider` (`resolve` canonicalizes user input, `fetch` returns normalized items or `not_modified`). `fetch` is injected through a context so providers can be tested without the network. Providers are registered in a small registry. The RSS/Atom provider ([apps/api/src/providers/rss](apps/api/src/providers/rss)) is implemented: it parses RSS 2.0, RSS 1.0 and Atom (including Reddit and YouTube-style feeds), builds plain-text excerpts, finds feeds advertised by web pages, and uses conditional requests. Other providers are still to do.
 
@@ -151,7 +151,7 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 
 Tests are written with each feature, not afterwards.
 
-- API: route tests via `app.request()` against an in-memory SQLite database, provider tests against saved real feed fixtures, and unit tests for the SSRF guard, sanitizer and scheduler (with fake timers). No test uses the real internet.
+- API: route tests via `app.request()` against an in-memory Postgres (PGlite), provider tests against saved real feed fixtures, and unit tests for the SSRF guard, sanitizer and scheduler (with fake timers). No test uses the real internet.
 - Shared: Zod schema tests for every widget config.
 - Web: Vue Test Utils with happy-dom. Components get a small fake of the typed API client ([test/fakeApi.ts](apps/web/src/test/fakeApi.ts)) that records requests, instead of MSW. The page test mounts the whole dashboard (tabs, widgets, edit mode, saving, the add panel) against that fake, with the grid library stubbed because happy-dom cannot measure layout. Dragging and resizing are verified in a real browser, and Playwright end-to-end tests are still planned.
 - Not planned yet: visual regression and snapshot tests.

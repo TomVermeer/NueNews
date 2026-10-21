@@ -1,1 +1,0 @@
-ALTER TABLE `widgets` ADD `color` text;

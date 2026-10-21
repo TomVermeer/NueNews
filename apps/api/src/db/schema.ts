@@ -1,25 +1,38 @@
 import { randomUUID } from 'node:crypto'
-import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 import type { SourceKind, WidgetColor, WidgetType } from '@nuenews/shared'
 
+// Ids are text, not uuid: a malformed id in a URL then simply finds nothing (404) instead of
+// failing in the database, and an auth provider's user ids fit as they are.
 const id = () =>
   text('id')
     .primaryKey()
     .$defaultFn(() => randomUUID())
 
+const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
+
 const createdAt = () =>
-  integer('created_at', { mode: 'timestamp_ms' })
+  timestamptz('created_at')
     .notNull()
     .$defaultFn(() => new Date())
 
-export const users = sqliteTable('users', {
+export const users = pgTable('users', {
   id: id(),
   email: text('email').unique(),
   name: text('name').notNull(),
   createdAt: createdAt(),
 })
 
-export const dashboards = sqliteTable(
+export const dashboards = pgTable(
   'dashboards',
   {
     id: id(),
@@ -33,7 +46,7 @@ export const dashboards = sqliteTable(
   (t) => [index('dashboards_user_idx').on(t.userId, t.position)],
 )
 
-export const widgets = sqliteTable(
+export const widgets = pgTable(
   'widgets',
   {
     id: id(),
@@ -44,13 +57,13 @@ export const widgets = sqliteTable(
     title: text('title').notNull(),
     /** Null: the default card color. */
     color: text('color').$type<WidgetColor>(),
-    config: text('config', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    config: jsonb('config').$type<Record<string, unknown>>().notNull(),
     x: integer('x').notNull().default(0),
     y: integer('y').notNull().default(0),
     w: integer('w').notNull().default(1),
     h: integer('h').notNull().default(1),
     createdAt: createdAt(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    updatedAt: timestamptz('updated_at')
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -58,7 +71,7 @@ export const widgets = sqliteTable(
 )
 
 /** Shared between users: one fetch serves every widget that points at the same source. */
-export const sources = sqliteTable(
+export const sources = pgTable(
   'sources',
   {
     id: id(),
@@ -71,8 +84,8 @@ export const sources = sqliteTable(
     intervalMin: integer('interval_min').notNull().default(30),
     etag: text('etag'),
     lastModified: text('last_modified'),
-    lastFetchedAt: integer('last_fetched_at', { mode: 'timestamp_ms' }),
-    nextFetchAt: integer('next_fetch_at', { mode: 'timestamp_ms' })
+    lastFetchedAt: timestamptz('last_fetched_at'),
+    nextFetchAt: timestamptz('next_fetch_at')
       .notNull()
       .$defaultFn(() => new Date()),
     lastStatus: text('last_status'),
@@ -84,7 +97,7 @@ export const sources = sqliteTable(
   ],
 )
 
-export const widgetSources = sqliteTable(
+export const widgetSources = pgTable(
   'widget_sources',
   {
     widgetId: text('widget_id')
@@ -97,7 +110,7 @@ export const widgetSources = sqliteTable(
   (t) => [primaryKey({ columns: [t.widgetId, t.sourceId] })],
 )
 
-export const items = sqliteTable(
+export const items = pgTable(
   'items',
   {
     id: id(),
@@ -110,11 +123,11 @@ export const items = sqliteTable(
     excerpt: text('excerpt'),
     imageUrl: text('image_url'),
     author: text('author'),
-    publishedAt: integer('published_at', { mode: 'timestamp_ms' }).notNull(),
-    fetchedAt: integer('fetched_at', { mode: 'timestamp_ms' })
+    publishedAt: timestamptz('published_at').notNull(),
+    fetchedAt: timestamptz('fetched_at')
       .notNull()
       .$defaultFn(() => new Date()),
-    meta: text('meta', { mode: 'json' }).$type<Record<string, unknown>>(),
+    meta: jsonb('meta').$type<Record<string, unknown>>(),
   },
   (t) => [
     uniqueIndex('items_source_external_uq').on(t.sourceId, t.externalId),
@@ -122,7 +135,7 @@ export const items = sqliteTable(
   ],
 )
 
-export const itemState = sqliteTable(
+export const itemState = pgTable(
   'item_state',
   {
     userId: text('user_id')
@@ -131,20 +144,20 @@ export const itemState = sqliteTable(
     itemId: text('item_id')
       .notNull()
       .references(() => items.id, { onDelete: 'cascade' }),
-    seenAt: integer('seen_at', { mode: 'timestamp_ms' }),
-    readAt: integer('read_at', { mode: 'timestamp_ms' }),
+    seenAt: timestamptz('seen_at'),
+    readAt: timestamptz('read_at'),
   },
   (t) => [primaryKey({ columns: [t.userId, t.itemId] })],
 )
 
-export const weatherCache = sqliteTable('weather_cache', {
+export const weatherCache = pgTable('weather_cache', {
   /** Rounded "lat,lon,units". */
   key: text('key').primaryKey(),
-  payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
-  fetchedAt: integer('fetched_at', { mode: 'timestamp_ms' }).notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  fetchedAt: timestamptz('fetched_at').notNull(),
 })
 
-export const credentials = sqliteTable(
+export const credentials = pgTable(
   'credentials',
   {
     id: id(),

@@ -1,19 +1,19 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1792440092371,
-      "tag": "0000_cultured_sunset_bain",
+      "version": "7",
+      "when": 1792613916301,
+      "tag": "0000_kind_morph",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "6",
-      "when": 1792612794877,
-      "tag": "0001_productive_colleen_wing",
+      "version": "7",
+      "when": 1792614145083,
+      "tag": "0001_enable_rls",
       "breakpoints": true
     }
   ]

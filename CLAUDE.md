@@ -26,7 +26,11 @@ pnpm --filter @nuenews/web exec vitest run src/pages -t "saves the layout"
 pnpm --filter @nuenews/api db:generate   # new SQL migration after editing apps/api/src/db/schema.ts
 ```
 
+Database access is asynchronous: await every query (`await db.select()…`, no `.run()/.get()/.all()`), use `firstRow`/`onlyRow` from `db/query.ts` for single rows, and inside `db.transaction(async (tx) => …)` use `tx`, not `db`. Without `DATABASE_URL` the dev API uses a PGlite folder (`apps/api/data/pglite`), which only one process can open at a time: stop the dev API before running the importer or anything else against it.
+
 The dev API (`tsx watch`) migrates the database only when it starts. Editing `schema.ts` restarts it before the new migration exists, so after `db:generate` touch `apps/api/src/index.ts` to restart it, or the running API will 500 on the missing column.
+
+Run Prettier from the repo root (`pnpm exec prettier --write <path>`, or `pnpm format`), never from inside a package: the root `.prettierignore` keeps the saved test fixtures untouched, and running it elsewhere reformats them.
 
 The dev port is 5273 on purpose (see `strictPort` in `apps/web/vite.config.ts`); don't change it back to 5173.
 
@@ -34,7 +38,7 @@ If the dev page is black in the owner's normal Chrome but works in incognito, th
 
 ## Architecture
 
-Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), `packages/shared` (Zod schemas and types). `shared` has no build step: packages import its TypeScript source directly.
+Monorepo: `apps/api` (Hono + Drizzle/PostgreSQL), `apps/web` (Vue 3 + Tailwind v4), `packages/shared` (Zod schemas and types). `shared` has no build step: packages import its TypeScript source directly.
 
 **Type flow between API and web.** `createApp(deps)` in `apps/api/src/app.ts` builds the Hono app and exports `AppType`; the web app builds a typed `hc<AppType>` client from it (`apps/web/src/api/client.ts`) and derives its response types with `InferResponseType` (`api/types.ts`). Routes must stay chained (`new Hono().get(...).post(...)`) or the client types are lost. `createApp` takes all dependencies (db, provider registry, HTTP client, clock, current user), which is how tests run the whole API in memory.
 
@@ -60,7 +64,7 @@ Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), 
 
 ## Testing notes
 
-- API tests build the real app on an in-memory SQLite database with a scripted fake provider (`apps/api/src/test/helpers.ts`, `createTestApp`). Provider tests use saved fixtures in `__fixtures__/` and never touch the network. Keep it that way.
+- API tests build the real app on an in-memory Postgres (PGlite) with a scripted fake provider (`apps/api/src/test/helpers.ts`, `createTestApp`, which is async). Each test file starts one PGlite and every test begins by emptying it (`freshDb`); the first test of a file is slower, hence the 30 s timeout in `apps/api/vitest.config.ts`. Provider tests use saved fixtures in `__fixtures__/` and never touch the network. Keep it that way.
 - Web tests use `src/test/fakeApi.ts`, a recording fake of the typed client, mocked per test file with `vi.mock('../api/client', ...)`. Mount with `mountApp` (Pinia, Query, router installed). `grid-layout-plus` is mocked in page tests because happy-dom cannot measure layout, so drag and resize are not unit-tested; check them in a real browser.
 - Vitest gotcha: a `beforeEach(() => mock.mockReset())` arrow that returns the mock makes Vitest call it as teardown. Use braces.
 - `grid-layout-plus` ignores drags that start on `<a>`/`<button>` unless `drag-ignore-from` is set; the drag handle is a button.
@@ -99,12 +103,13 @@ Monorepo: `apps/api` (Hono + Drizzle/SQLite), `apps/web` (Vue 3 + Tailwind v4), 
 
 Update this section when you finish a chunk of work, so the next session starts here.
 
-Done: monorepo and tooling, database, RSS/Atom and YouTube providers, weather, scheduler, the dashboard/widget API, and the dashboard UI (grid, edit mode, add/settings panel).
+Done: monorepo and tooling, database, RSS/Atom and YouTube providers, weather, scheduler, the dashboard/widget API, and the dashboard UI (grid, edit mode, add/settings panel), plus UI tuning: YouTube channel groups with avatars and links, smart default titles with inline rename, and per-widget background colors.
 
 Next, in the order the owner chose:
 
-1. **RoyalRoad** provider and widget, URL-list mode first. It uses the per-fiction feed at `/fiction/syndication/{id}` (not yet checked against the live site) and needs an "unread chapters" notion. A "follows" mode would need a logged-in session and is undecided; see the open questions in [docs/DESIGN.md](docs/DESIGN.md).
-2. **Playwright end-to-end tests** for drag, resize, save and add-widget, wired into CI (CI currently runs only lint, format check, typecheck, tests and build).
-3. **Hosting and real authentication** (low-cost, easy to maintain; not chosen yet), then sharing and Postgres.
+1. **Get it deployable, at no cost:** follow [docs/DEPLOYMENT-PLAN.md](docs/DEPLOYMENT-PLAN.md). Step 1 (PostgreSQL) is done locally: PGlite in dev and tests, `DATABASE_URL` for a real server, real data imported; only the hosted database is left. Next is Step 2 single-user login (Supabase Auth was the first idea, but the host choice is being researched, so confirm before building), Step 3 make it a deployable unit (API serves the web build, health check, cron-driven refresh), Step 4 choose a host and deploy. The open questions at the end of that plan need the owner's answers.
+2. **RoyalRoad** provider and widget (deferred until after deployment), URL-list mode first. It uses the per-fiction feed at `/fiction/syndication/{id}` (not yet checked against the live site) and needs an "unread chapters" notion. A "follows" mode would need a logged-in session and is undecided; see the open questions in [docs/DESIGN.md](docs/DESIGN.md).
+3. **Playwright end-to-end tests** for drag, resize, save and add-widget, wired into CI (CI currently runs only lint, format check, typecheck, tests and build).
+4. Reddit preset (needs OAuth), sharing between users.
 
 Known gaps: a **Reddit** preset needs OAuth (unauthenticated RSS gets `429`); Reddit is planned after RoyalRoad; import/export of dashboards is not built.

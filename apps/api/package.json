@@ -12,22 +12,27 @@
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:import-sqlite": "tsx scripts/import-sqlite.ts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@hono/node-server": "^2.1.5",
     "@hono/zod-validator": "^0.9.1",
     "@nuenews/shared": "workspace:*",
-    "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",
     "fast-xml-parser": "^5.11.2",
     "hono": "^4.13.13",
+    "pg": "^8.23.1",
     "undici": "^8.12.3",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite-socket": "^0.2.14",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "better-sqlite3": "^13.0.3",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "vitest": "^5.0.5"

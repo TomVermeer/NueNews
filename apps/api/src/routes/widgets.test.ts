@@ -24,7 +24,11 @@ const threeItemsPerSource = {
   }),
 }
 
-async function widgetWith(t: ReturnType<typeof createTestApp>, urls: string[], extra = {}) {
+async function widgetWith(
+  t: Awaited<ReturnType<typeof createTestApp>>,
+  urls: string[],
+  extra = {},
+) {
   const dashboard = await t.call('POST', '/dashboards', { name: 'Home' })
   const widget = await t.call(
     'POST',
@@ -37,7 +41,7 @@ async function widgetWith(t: ReturnType<typeof createTestApp>, urls: string[], e
 
 describe('GET /widgets/:id/data', () => {
   it('returns the newest items, limited, with source names', async () => {
-    const t = createTestApp(threeItemsPerSource)
+    const t = await createTestApp(threeItemsPerSource)
     const id = await widgetWith(t, ['https://a.example/feed'], { limit: 2 })
 
     const { status, body } = await t.call('GET', `/widgets/${id}/data`)
@@ -57,7 +61,7 @@ describe('GET /widgets/:id/data', () => {
   })
 
   it('merges several sources newest first and prefers the label you gave a source', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       fetch: (source) => ({
         status: 'ok',
         items: source.key.includes('a.example')
@@ -90,7 +94,7 @@ describe('GET /widgets/:id/data', () => {
   })
 
   it('reports a source that is failing', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       fetch: () => {
         throw new ProviderError('The site answered with HTTP 500', { status: 500 })
       },
@@ -102,14 +106,14 @@ describe('GET /widgets/:id/data', () => {
   })
 
   it('answers 404 for unknown widgets', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     expect((await t.call('GET', '/widgets/nope/data')).status).toBe(404)
   })
 })
 
 describe('item state', () => {
   async function setup() {
-    const t = createTestApp(threeItemsPerSource)
+    const t = await createTestApp(threeItemsPerSource)
     const id = await widgetWith(t, ['https://a.example/feed'])
     const { body } = await t.call('GET', `/widgets/${id}/data`)
     return { t, id, items: body.items as { id: string; seen: boolean; read: boolean }[] }
@@ -165,7 +169,7 @@ describe('item state', () => {
   it('stores state per user', async () => {
     const { t, items } = await setup()
     await t.call('POST', '/items/state', { ids: [items[0]!.id], action: 'read' })
-    expect(t.db.select().from(itemState).all()).toEqual([
+    expect(await t.db.select().from(itemState)).toEqual([
       expect.objectContaining({ userId: t.userId, itemId: items[0]!.id }),
     ])
   })
@@ -173,29 +177,29 @@ describe('item state', () => {
 
 describe('PATCH /widgets/:id', () => {
   it('renames a widget', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await widgetWith(t, ['https://a.example/feed'])
     const res = await t.call('PATCH', `/widgets/${id}`, { title: 'Renamed' })
     expect(res.body).toMatchObject({ id, title: 'Renamed' })
   })
 
   it('adds and removes sources when the config changes, keeping the shared source rows', async () => {
-    const t = createTestApp(threeItemsPerSource)
+    const t = await createTestApp(threeItemsPerSource)
     const id = await widgetWith(t, ['https://a.example/feed'])
 
     await t.call('PATCH', `/widgets/${id}`, {
       config: { sources: [{ url: 'https://b.example/feed' }] },
     })
 
-    expect(t.db.select().from(sources).all()).toHaveLength(2)
-    const linked = t.db.select().from(widgetSources).all()
+    expect(await t.db.select().from(sources)).toHaveLength(2)
+    const linked = await t.db.select().from(widgetSources)
     expect(linked).toHaveLength(1)
     const { body } = await t.call('GET', `/widgets/${id}/data`)
     expect(body.items.every((i: { title: string }) => i.title.startsWith('b.example'))).toBe(true)
   })
 
   it('validates the new config against the widget type', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await widgetWith(t, ['https://a.example/feed'])
     const res = await t.call('PATCH', `/widgets/${id}`, { config: { sources: [] } })
     expect(res.status).toBe(400)
@@ -203,7 +207,7 @@ describe('PATCH /widgets/:id', () => {
   })
 
   it('refuses private addresses in a changed config', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await widgetWith(t, ['https://a.example/feed'])
     const res = await t.call('PATCH', `/widgets/${id}`, {
       config: { sources: [{ url: 'http://localhost:3000/' }] },
@@ -213,7 +217,7 @@ describe('PATCH /widgets/:id', () => {
   })
 
   it('needs something to change, and a widget that exists', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await widgetWith(t, ['https://a.example/feed'])
     expect((await t.call('PATCH', `/widgets/${id}`, {})).status).toBe(400)
     expect((await t.call('PATCH', '/widgets/nope', { title: 'x' })).status).toBe(404)
@@ -222,7 +226,7 @@ describe('PATCH /widgets/:id', () => {
 
 describe('widget color', () => {
   it('starts without a color, which means the default card', async () => {
-    const t = createTestApp(threeItemsPerSource)
+    const t = await createTestApp(threeItemsPerSource)
     const id = await widgetWith(t, ['https://a.example/feed'])
     const dashboard = (await t.call('GET', '/dashboards')).body.dashboards[0]
     const detail = await t.call('GET', `/dashboards/${dashboard.id}`)
@@ -230,7 +234,7 @@ describe('widget color', () => {
   })
 
   it('can be chosen when the widget is created', async () => {
-    const t = createTestApp(threeItemsPerSource)
+    const t = await createTestApp(threeItemsPerSource)
     const dashboard = await t.call('POST', '/dashboards', { name: 'Home' })
     const res = await t.call('POST', `/dashboards/${dashboard.body.id}/widgets`, {
       ...feedWidget(['https://a.example/feed']),
@@ -241,7 +245,7 @@ describe('widget color', () => {
   })
 
   it('can be changed on its own, and reset to the default with null', async () => {
-    const t = createTestApp(threeItemsPerSource)
+    const t = await createTestApp(threeItemsPerSource)
     const id = await widgetWith(t, ['https://a.example/feed'])
 
     const set = await t.call('PATCH', `/widgets/${id}`, { color: 'teal' })
@@ -256,7 +260,7 @@ describe('widget color', () => {
   })
 
   it('only accepts colors from the palette', async () => {
-    const t = createTestApp(threeItemsPerSource)
+    const t = await createTestApp(threeItemsPerSource)
     const id = await widgetWith(t, ['https://a.example/feed'])
     expect((await t.call('PATCH', `/widgets/${id}`, { color: '#ff0000' })).status).toBe(400)
     expect((await t.call('PATCH', `/widgets/${id}`, { color: 'chartreuse' })).status).toBe(400)
@@ -265,19 +269,19 @@ describe('widget color', () => {
 
 describe('DELETE /widgets/:id', () => {
   it('removes the widget and its links but keeps shared sources', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await widgetWith(t, ['https://a.example/feed'])
     expect((await t.call('DELETE', `/widgets/${id}`)).status).toBe(204)
-    expect(t.db.select().from(widgets).all()).toHaveLength(0)
-    expect(t.db.select().from(widgetSources).all()).toHaveLength(0)
-    expect(t.db.select().from(sources).all()).toHaveLength(1)
+    expect(await t.db.select().from(widgets)).toHaveLength(0)
+    expect(await t.db.select().from(widgetSources)).toHaveLength(0)
+    expect(await t.db.select().from(sources)).toHaveLength(1)
     expect((await t.call('DELETE', `/widgets/${id}`)).status).toBe(404)
   })
 })
 
 describe('POST /widgets/:id/refresh', () => {
   it('skips sources that were fetched very recently', async () => {
-    const t = createTestApp(threeItemsPerSource)
+    const t = await createTestApp(threeItemsPerSource)
     const id = await widgetWith(t, ['https://a.example/feed'])
     expect(t.fetch).toHaveBeenCalledTimes(1)
 
@@ -288,7 +292,7 @@ describe('POST /widgets/:id/refresh', () => {
 
   it('refreshes once the minimum interval has passed', async () => {
     let current = NOW
-    const t = createTestApp(threeItemsPerSource, { now: () => current })
+    const t = await createTestApp(threeItemsPerSource, { now: () => current })
     const id = await widgetWith(t, ['https://a.example/feed'])
 
     current = new Date(NOW.getTime() + 61_000)
@@ -298,7 +302,7 @@ describe('POST /widgets/:id/refresh', () => {
   })
 
   it('answers 404 for unknown widgets', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     expect((await t.call('POST', '/widgets/nope/refresh')).status).toBe(404)
   })
 })

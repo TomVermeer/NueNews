@@ -54,7 +54,7 @@ async function fillIcon(deps: RefreshDeps, source: SourceRow): Promise<void> {
       deps.ctx,
     )
     if (!faviconUrl) return
-    deps.db.update(sources).set({ faviconUrl }).where(eq(sources.id, source.id)).run()
+    await deps.db.update(sources).set({ faviconUrl }).where(eq(sources.id, source.id))
   } catch {
     // Best effort, see above.
   }
@@ -81,10 +81,11 @@ export async function refreshSource(
     )
 
     if (result.status === 'ok') {
-      db.transaction(() => {
-        upsertItems(db, source.id, result.items, now)
-        pruneItems(db, source.id, deps.keepItems ?? DEFAULT_KEEP_ITEMS)
-        db.update(sources)
+      await db.transaction(async (tx) => {
+        await upsertItems(tx, source.id, result.items, now)
+        await pruneItems(tx, source.id, deps.keepItems ?? DEFAULT_KEEP_ITEMS)
+        await tx
+          .update(sources)
           .set({
             etag: result.etag ?? null,
             lastModified: result.lastModified ?? null,
@@ -96,13 +97,13 @@ export async function refreshSource(
             errorCount: 0,
           })
           .where(eq(sources.id, source.id))
-          .run()
       })
       await fillIcon(deps, source)
       return 'ok'
     }
 
-    db.update(sources)
+    await db
+      .update(sources)
       .set({
         lastFetchedAt: now,
         nextFetchAt: nextFetchAfterSuccess(now, source.intervalMin),
@@ -110,13 +111,13 @@ export async function refreshSource(
         errorCount: 0,
       })
       .where(eq(sources.id, source.id))
-      .run()
     await fillIcon(deps, source)
     return 'not_modified'
   } catch (error) {
     const { message, retryAfterSeconds } = describeError(error)
     const errorCount = source.errorCount + 1
-    db.update(sources)
+    await db
+      .update(sources)
       .set({
         lastFetchedAt: now,
         nextFetchAt: nextFetchAfterError(now, source.intervalMin, errorCount, retryAfterSeconds),
@@ -124,13 +125,17 @@ export async function refreshSource(
         errorCount,
       })
       .where(eq(sources.id, source.id))
-      .run()
     return 'error'
   }
 }
 
 /** Sources that are due and that some widget actually uses (nobody polls orphaned sources). */
-export function selectDueSources(db: Db, registry: ProviderRegistry, now: Date, limit: number) {
+export async function selectDueSources(
+  db: Db,
+  registry: ProviderRegistry,
+  now: Date,
+  limit: number,
+) {
   const kinds = registry.kinds()
   if (kinds.length === 0) return []
   return db
@@ -145,5 +150,4 @@ export function selectDueSources(db: Db, registry: ProviderRegistry, now: Date, 
     )
     .orderBy(sources.nextFetchAt)
     .limit(limit)
-    .all()
 }

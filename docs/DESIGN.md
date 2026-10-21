@@ -5,7 +5,7 @@ Status: v0.5. Backend and dashboard UI implemented except RoyalRoad (see README)
 ## 1. Stack
 
 - Monorepo (pnpm workspaces): `apps/web` (Vue 3, Vite, TypeScript, Tailwind, dark mode only), `apps/api` (Hono on Node), `packages/shared` (types and Zod schemas).
-- SQLite with Drizzle ORM (Postgres-ready). Zod validation on every route. Hono typed RPC client (`hc`) for end-to-end types.
+- PostgreSQL with Drizzle ORM (PGlite in development and tests). Zod validation on every route. Hono typed RPC client (`hc`) for end-to-end types.
 - Web: Pinia, Vue Router, TanStack Query, `grid-layout-plus`.
 
 ## 2. Design principles
@@ -20,7 +20,7 @@ Status: v0.5. Backend and dashboard UI implemented except RoyalRoad (see README)
 ## 3. Architecture
 
 ```
-Vue app  --(typed fetch)-->  Hono API  --reads-->  SQLite (items cache)
+Vue app  --(typed fetch)-->  Hono API  --reads-->  PostgreSQL (items cache)
                                  ^                       ^
                                  |                       |
                          Scheduler (in-process) --> Providers --> external feeds
@@ -32,7 +32,7 @@ Vue app  --(typed fetch)-->  Hono API  --reads-->  SQLite (items cache)
 - **Scheduler:** a loop picks sources where `next_fetch_at <= now`, limits concurrency per host, backs off exponentially on errors, and prunes old items (keeps the newest 100 per source; there is no age limit, so quiet feeds keep their history).
 - **Safety (matters for multi-user):** SSRF guard on user-supplied URLs (block private and loopback ranges, https/http only, no redirects into private ranges), 10 s timeout, 2 MB response cap, HTML sanitized to plain text, image URLs must be http(s).
 
-## 4. Data model (Drizzle / SQLite)
+## 4. Data model (Drizzle / PostgreSQL)
 
 Shared tables (no `user_id`; one fetch serves everyone): `sources`, `items`, `weather_cache`.
 User-owned tables: `users`, `dashboards`, `widgets`, `widget_sources`, `item_state`, `credentials`.
@@ -120,7 +120,7 @@ Tests are written alongside each feature from phase 1, not added afterwards. One
 
 **Backend (`apps/api`)**
 
-- Route tests call the Hono app directly with `app.request()` against an in-memory SQLite database with real migrations applied, so schema, validation and handlers are tested together without a network.
+- Route tests call the Hono app directly with `app.request()` against an in-memory Postgres (PGlite) with real migrations applied, so schema, validation and handlers are tested together without a network.
 - Provider tests parse saved fixture files (real RSS, Atom, YouTube, Reddit and RoyalRoad responses stored in `__fixtures__/`) and mock HTTP at the boundary, covering conditional requests (`304`), errors, malformed XML and oversized responses.
 - Pure-logic unit tests: SSRF guard, HTML-to-text sanitizer and excerpt truncation, URL canonicalization and resolve (handle to channel id, URL to fiction id), unread calculation, retention pruning.
 - Scheduler tests use fake timers: due-source selection, per-host concurrency, exponential backoff, `Retry-After`.
@@ -132,7 +132,7 @@ Tests are written alongside each feature from phase 1, not added afterwards. One
 
 - Unit and component tests: Vitest with Vue Test Utils and happy-dom. Cover widget components (render states: loading, empty, error, populated), settings forms, Pinia stores and composables.
 - API mocking with MSW, using the shared types so mocks can't drift from the real contract.
-- A small number of Playwright end-to-end tests against the real API with a temporary SQLite file: add a widget, edit and save a layout, mark an item read on click-through, and the error state of a failing feed. Drag and drop is tested here, not in unit tests, because it is unreliable in a simulated DOM.
+- A small number of Playwright end-to-end tests against the real API with a temporary PGlite folder: add a widget, edit and save a layout, mark an item read on click-through, and the error state of a failing feed. Drag and drop is tested here, not in unit tests, because it is unreliable in a simulated DOM.
 - `vue-tsc` type-checking and ESLint run in the same CI step as tests.
 - Not at the start: visual regression and snapshot-heavy tests, which cost more than they return while the UI is still changing.
 

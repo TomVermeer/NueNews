@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { dashboards, items, sources, users, widgetSources, widgets } from '../db/schema'
 import { createTestApp, item } from '../test/helpers'
+import { firstRow } from '../db/query'
 
 const feedWidget = (urls: string[], extra: Record<string, unknown> = {}) => ({
   type: 'feed',
@@ -9,7 +10,7 @@ const feedWidget = (urls: string[], extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
-async function newDashboard(t: ReturnType<typeof createTestApp>, name = 'Home') {
+async function newDashboard(t: Awaited<ReturnType<typeof createTestApp>>, name = 'Home') {
   const res = await t.call('POST', '/dashboards', { name })
   expect(res.status).toBe(201)
   return res.body.id as string
@@ -17,7 +18,7 @@ async function newDashboard(t: ReturnType<typeof createTestApp>, name = 'Home') 
 
 describe('dashboards', () => {
   it('starts empty and lists dashboards in creation order', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     expect((await t.call('GET', '/dashboards')).body).toEqual({ dashboards: [] })
 
     await newDashboard(t, 'Home')
@@ -28,7 +29,7 @@ describe('dashboards', () => {
   })
 
   it('validates names', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const res = await t.call('POST', '/dashboards', { name: '   ' })
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('invalid_request')
@@ -36,7 +37,7 @@ describe('dashboards', () => {
   })
 
   it('renames and deletes', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
 
     const renamed = await t.call('PATCH', `/dashboards/${id}`, { name: 'Dev' })
@@ -47,7 +48,7 @@ describe('dashboards', () => {
   })
 
   it('returns 404 for dashboards that do not exist', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const res = await t.call('GET', '/dashboards/nope')
     expect(res).toEqual({
       status: 404,
@@ -56,9 +57,9 @@ describe('dashboards', () => {
   })
 
   it("never exposes another user's dashboard", async () => {
-    const t = createTestApp()
-    t.db.insert(users).values({ id: 'other', name: 'Other' }).run()
-    t.db.insert(dashboards).values({ id: 'theirs', userId: 'other', name: 'Private' }).run()
+    const t = await createTestApp()
+    await t.db.insert(users).values({ id: 'other', name: 'Other' })
+    await t.db.insert(dashboards).values({ id: 'theirs', userId: 'other', name: 'Private' })
 
     expect((await t.call('GET', '/dashboards')).body.dashboards).toEqual([])
     expect((await t.call('GET', '/dashboards/theirs')).status).toBe(404)
@@ -68,13 +69,13 @@ describe('dashboards', () => {
       (await t.call('POST', '/dashboards/theirs/widgets', feedWidget(['https://a.example/f'])))
         .status,
     ).toBe(404)
-    expect(t.db.select().from(dashboards).all()).toHaveLength(1)
+    expect(await t.db.select().from(dashboards)).toHaveLength(1)
   })
 })
 
 describe('reorder', () => {
   it('saves a new tab order', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const a = await newDashboard(t, 'A')
     const b = await newDashboard(t, 'B')
     const c = await newDashboard(t, 'C')
@@ -90,7 +91,7 @@ describe('reorder', () => {
     ['a duplicate', (ids: string[]) => [ids[0]!, ids[0]!]],
     ['an unknown id', (ids: string[]) => [...ids, 'nope']],
   ])('rejects a list with %s', async (_name, mutate) => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const ids = [await newDashboard(t, 'A'), await newDashboard(t, 'B')]
     const res = await t.call('PUT', '/dashboards/reorder', { ids: mutate(ids) })
     expect(res.status).toBe(400)
@@ -100,7 +101,7 @@ describe('reorder', () => {
 
 describe('creating widgets', () => {
   it('creates a feed widget, links its source and fills it right away', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       fetch: (source) => ({
         status: 'ok',
         items: [item(1, { externalId: `${source.key}#1` })],
@@ -122,14 +123,14 @@ describe('creating widgets', () => {
       layout: { x: 0, y: 0, w: 4, h: 6 },
       config: { limit: 5, excerpt: 'compact', showImages: true },
     })
-    expect(t.db.select().from(sources).all()).toHaveLength(1)
-    expect(t.db.select().from(widgetSources).all()).toHaveLength(1)
-    expect(t.db.select().from(items).all()).toHaveLength(1)
+    expect(await t.db.select().from(sources)).toHaveLength(1)
+    expect(await t.db.select().from(widgetSources)).toHaveLength(1)
+    expect(await t.db.select().from(items)).toHaveLength(1)
     expect(t.fetch).toHaveBeenCalledTimes(1)
   })
 
   it('stacks new widgets below the existing ones, or honours an explicit layout', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
     const first = await t.call(
       'POST',
@@ -152,17 +153,17 @@ describe('creating widgets', () => {
   })
 
   it('shares one source between widgets that use the same URL', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
     await t.call('POST', `/dashboards/${id}/widgets`, feedWidget(['https://a.example/f']))
     await t.call('POST', `/dashboards/${id}/widgets`, feedWidget(['https://a.example/f']))
-    expect(t.db.select().from(sources).all()).toHaveLength(1)
-    expect(t.db.select().from(widgetSources).all()).toHaveLength(2)
+    expect(await t.db.select().from(sources)).toHaveLength(1)
+    expect(await t.db.select().from(widgetSources)).toHaveLength(2)
     expect(t.fetch).toHaveBeenCalledTimes(1) // the second widget reuses the fresh data
   })
 
   it('creates widgets even when the first fetch fails, and records the error', async () => {
-    const t = createTestApp({
+    const t = await createTestApp({
       fetch: () => {
         throw new Error('network down')
       },
@@ -174,11 +175,11 @@ describe('creating widgets', () => {
       feedWidget(['https://a.example/f']),
     )
     expect(res.status).toBe(201)
-    expect(t.db.select().from(sources).get()).toMatchObject({ errorCount: 1 })
+    expect(firstRow(await t.db.select().from(sources))).toMatchObject({ errorCount: 1 })
   })
 
   it('creates a weather widget without sources', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
     const res = await t.call('POST', `/dashboards/${id}/widgets`, {
       type: 'weather',
@@ -187,11 +188,11 @@ describe('creating widgets', () => {
     })
     expect(res.status).toBe(201)
     expect(res.body.config.units).toBe('metric')
-    expect(t.db.select().from(sources).all()).toHaveLength(0)
+    expect(await t.db.select().from(sources)).toHaveLength(0)
   })
 
   it('rejects widget types that have no provider yet', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
     const res = await t.call('POST', `/dashboards/${id}/widgets`, {
       type: 'royalroad',
@@ -200,11 +201,11 @@ describe('creating widgets', () => {
     })
     expect(res.status).toBe(422)
     expect(res.body.error.code).toBe('widget_type_unavailable')
-    expect(t.db.select().from(widgets).all()).toHaveLength(0)
+    expect(await t.db.select().from(widgets)).toHaveLength(0)
   })
 
   it('rejects invalid configs and unknown types', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
     const empty = await t.call('POST', `/dashboards/${id}/widgets`, feedWidget([]))
     expect(empty.status).toBe(400)
@@ -222,11 +223,11 @@ describe('creating widgets', () => {
       feedWidget(['https://a.example/f'], { layout: { x: 20, y: 0, w: 4, h: 4 } }),
     )
     expect(badLayout.status).toBe(400)
-    expect(t.db.select().from(widgets).all()).toHaveLength(0)
+    expect(await t.db.select().from(widgets)).toHaveLength(0)
   })
 
   it('refuses feed addresses that point at private networks', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
     const res = await t.call(
       'POST',
@@ -235,14 +236,14 @@ describe('creating widgets', () => {
     )
     expect(res.status).toBe(422)
     expect(res.body.error.code).toBe('blocked_url')
-    expect(t.db.select().from(widgets).all()).toHaveLength(0)
-    expect(t.db.select().from(sources).all()).toHaveLength(0)
+    expect(await t.db.select().from(widgets)).toHaveLength(0)
+    expect(await t.db.select().from(sources)).toHaveLength(0)
   })
 })
 
 describe('dashboard with widgets', () => {
   it('returns widgets ordered top to bottom', async () => {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
     await t.call(
       'POST',
@@ -261,7 +262,7 @@ describe('dashboard with widgets', () => {
 
 describe('saving a layout', () => {
   async function setup() {
-    const t = createTestApp()
+    const t = await createTestApp()
     const id = await newDashboard(t)
     const a = (
       await t.call('POST', `/dashboards/${id}/widgets`, feedWidget(['https://a.example/f']))
@@ -297,7 +298,7 @@ describe('saving a layout', () => {
     })
     expect(res.status).toBe(200)
     expect(res.body.widgets.map((w: { id: string }) => w.id)).toEqual([a])
-    expect(t.db.select().from(widgetSources).all()).toHaveLength(1)
+    expect(await t.db.select().from(widgetSources)).toHaveLength(1)
   })
 
   it('changes nothing when any id is not a widget of this dashboard', async () => {
@@ -315,11 +316,7 @@ describe('saving a layout', () => {
     })
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('unknown_widget')
-    const unchanged = t.db
-      .select()
-      .from(widgets)
-      .all()
-      .find((w) => w.id === a)
+    const unchanged = (await t.db.select().from(widgets)).find((w) => w.id === a)
     expect(unchanged).toMatchObject({ x: 0, y: 0 })
   })
 

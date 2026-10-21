@@ -6,40 +6,33 @@ import { itemState, items } from '../db/schema'
 import { validate } from '../http'
 
 export function itemRoutes({ db, now: clock }: AppDeps) {
-  return new Hono<Env>().post('/state', validate('json', itemStateSchema), (c) => {
+  return new Hono<Env>().post('/state', validate('json', itemStateSchema), async (c) => {
     const userId = c.get('userId')
     const { ids, action } = c.req.valid('json')
     const now = clock()
 
-    const existing = db
-      .select({ id: items.id })
-      .from(items)
-      .where(inArray(items.id, ids))
-      .all()
-      .map((row) => row.id)
+    const existing = (
+      await db.select({ id: items.id }).from(items).where(inArray(items.id, ids))
+    ).map((row) => row.id)
     const current = new Map(
-      db
-        .select()
-        .from(itemState)
-        .where(inArray(itemState.itemId, existing))
-        .all()
+      (await db.select().from(itemState).where(inArray(itemState.itemId, existing)))
         .filter((row) => row.userId === userId)
         .map((row) => [row.itemId, row]),
     )
 
-    db.transaction(() => {
+    await db.transaction(async (tx) => {
       for (const itemId of existing) {
         const before = current.get(itemId)
         const seenAt = before?.seenAt ?? (action === 'unread' ? null : now)
         const readAt =
           action === 'read' ? now : action === 'unread' ? null : (before?.readAt ?? null)
-        db.insert(itemState)
+        await tx
+          .insert(itemState)
           .values({ userId, itemId, seenAt, readAt })
           .onConflictDoUpdate({
             target: [itemState.userId, itemState.itemId],
             set: { seenAt, readAt },
           })
-          .run()
       }
     })
     return c.json({ updated: existing.length })

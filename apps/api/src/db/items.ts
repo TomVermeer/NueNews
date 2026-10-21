@@ -4,15 +4,16 @@ import type { Db } from './client'
 import { items } from './schema'
 
 /** Inserts new items and refreshes existing ones (matched on source + external id). */
-export function upsertItems(
+export async function upsertItems(
   db: Db,
   sourceId: string,
   incoming: NormalizedItem[],
   now = new Date(),
-): void {
+): Promise<void> {
   if (incoming.length === 0) return
 
-  db.insert(items)
+  await db
+    .insert(items)
     .values(
       incoming.map((item) => ({
         sourceId,
@@ -39,11 +40,10 @@ export function upsertItems(
         meta: sql`excluded.meta`,
       },
     })
-    .run()
 }
 
 /** Newest items across the given sources. */
-export function listLatestItems(db: Db, sourceIds: string[], limit: number) {
+export async function listLatestItems(db: Db, sourceIds: string[], limit: number) {
   if (sourceIds.length === 0) return []
   return db
     .select()
@@ -51,12 +51,11 @@ export function listLatestItems(db: Db, sourceIds: string[], limit: number) {
     .where(inArray(items.sourceId, sourceIds))
     .orderBy(desc(items.publishedAt))
     .limit(limit)
-    .all()
 }
 
 /** Keeps only the newest `keep` items of a source. */
-export function pruneItems(db: Db, sourceId: string, keep: number): void {
-  db.run(sql`
+export async function pruneItems(db: Db, sourceId: string, keep: number): Promise<void> {
+  await db.execute(sql`
     DELETE FROM items
     WHERE source_id = ${sourceId}
       AND id NOT IN (

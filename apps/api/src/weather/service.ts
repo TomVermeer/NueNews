@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import type { GeocodeResult, WeatherSnapshot } from '@nuenews/shared'
 import type { Db } from '../db/client'
+import { firstRow } from '../db/query'
 import { weatherCache } from '../db/schema'
 import type { HttpClient } from '../lib/http'
 import { parseRetryAfter, ProviderError } from '../providers/errors'
@@ -48,7 +49,7 @@ export async function getWeather(
   units: Units,
 ): Promise<WeatherResult> {
   const key = cacheKey(location.lat, location.lon, units)
-  const cached = db.select().from(weatherCache).where(eq(weatherCache.key, key)).get()
+  const cached = firstRow(await db.select().from(weatherCache).where(eq(weatherCache.key, key)))
   const asResult = (stale: boolean): WeatherResult => ({
     snapshot: cached!.payload as unknown as WeatherSnapshot,
     fetchedAt: cached!.fetchedAt,
@@ -65,13 +66,13 @@ export async function getWeather(
       ),
     )
     const fetchedAt = now()
-    db.insert(weatherCache)
+    await db
+      .insert(weatherCache)
       .values({ key, payload: snapshot as unknown as Record<string, unknown>, fetchedAt })
       .onConflictDoUpdate({
         target: weatherCache.key,
         set: { payload: snapshot as unknown as Record<string, unknown>, fetchedAt },
       })
-      .run()
     return { snapshot, fetchedAt, stale: false }
   } catch (error) {
     if (cached) return asResult(true)

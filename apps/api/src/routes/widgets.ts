@@ -8,6 +8,7 @@ import {
 } from '@nuenews/shared'
 import type { AppDeps, Env } from '../context'
 import { itemState, items, sources, widgetSources, widgets } from '../db/schema'
+import { onlyRow } from '../db/query'
 import { ApiError, notFound, validate } from '../http'
 import { refreshSourcesNow } from '../services/refreshNow'
 import { getWeather } from '../weather/service'
@@ -22,23 +23,23 @@ import {
 export function widgetRoutes(deps: AppDeps) {
   const { db } = deps
 
-  const owned = (userId: string, id: string) => {
-    const widget = ownedWidget(db, userId, id)
+  const owned = async (userId: string, id: string) => {
+    const widget = await ownedWidget(db, userId, id)
     if (!widget) throw notFound('Widget')
     return widget
   }
 
-  const sourceIdsOf = (widgetId: string) =>
-    db
-      .select({ id: widgetSources.sourceId })
-      .from(widgetSources)
-      .where(eq(widgetSources.widgetId, widgetId))
-      .all()
-      .map((row) => row.id)
+  const sourceIdsOf = async (widgetId: string) =>
+    (
+      await db
+        .select({ id: widgetSources.sourceId })
+        .from(widgetSources)
+        .where(eq(widgetSources.widgetId, widgetId))
+    ).map((row) => row.id)
 
   return new Hono<Env>()
     .patch('/:id', validate('json', updateWidgetSchema), async (c) => {
-      const widget = owned(c.get('userId'), c.req.param('id'))
+      const widget = await owned(c.get('userId'), c.req.param('id'))
       const body = c.req.valid('json')
 
       let config = widget.config
@@ -55,19 +56,22 @@ export function widgetRoutes(deps: AppDeps) {
 
       const refs = body.config !== undefined ? sourceRefsFor(widget.type, config) : undefined
       const now = deps.now()
-      const { updated, newSourceIds } = db.transaction(() => {
-        const updated = db
-          .update(widgets)
-          .set({
-            title: body.title ?? widget.title,
-            color: body.color === undefined ? widget.color : body.color,
-            config,
-            updatedAt: now,
-          })
-          .where(eq(widgets.id, widget.id))
-          .returning()
-          .get()
-        const linked = refs ? linkWidgetSources(db, widget.id, refs, now) : { newSourceIds: [] }
+      const { updated, newSourceIds } = await db.transaction(async (tx) => {
+        const updated = onlyRow(
+          await tx
+            .update(widgets)
+            .set({
+              title: body.title ?? widget.title,
+              color: body.color === undefined ? widget.color : body.color,
+              config,
+              updatedAt: now,
+            })
+            .where(eq(widgets.id, widget.id))
+            .returning(),
+        )
+        const linked = refs
+          ? await linkWidgetSources(tx, widget.id, refs, now)
+          : { newSourceIds: [] }
         return { updated, newSourceIds: linked.newSourceIds }
       })
 
@@ -75,15 +79,15 @@ export function widgetRoutes(deps: AppDeps) {
       return c.json(toWidgetDto(updated))
     })
 
-    .delete('/:id', (c) => {
-      const widget = owned(c.get('userId'), c.req.param('id'))
-      db.delete(widgets).where(eq(widgets.id, widget.id)).run()
+    .delete('/:id', async (c) => {
+      const widget = await owned(c.get('userId'), c.req.param('id'))
+      await db.delete(widgets).where(eq(widgets.id, widget.id))
       return c.body(null, 204)
     })
 
     .get('/:id/data', async (c) => {
       const userId = c.get('userId')
-      const widget = owned(userId, c.req.param('id'))
+      const widget = await owned(userId, c.req.param('id'))
 
       if (widget.type === 'weather') {
         const config = weatherConfigSchema.parse(widget.config)
@@ -113,17 +117,16 @@ export function widgetRoutes(deps: AppDeps) {
 
       const config = widgetConfigSchemas[widget.type].parse(widget.config)
       const labels = sourceLabels(widget.type, config)
-      const sourceRows = db
+      const sourceRows = await db
         .select()
         .from(sources)
-        .where(inArray(sources.id, sourceIdsOf(widget.id)))
-        .all()
+        .where(inArray(sources.id, await sourceIdsOf(widget.id)))
       const byId = new Map(sourceRows.map((row) => [row.id, row]))
 
       const rows =
         sourceRows.length === 0
           ? []
-          : db
+          : await db
               .select({
                 id: items.id,
                 sourceId: items.sourceId,
@@ -144,7 +147,6 @@ export function widgetRoutes(deps: AppDeps) {
               .where(inArray(items.sourceId, [...byId.keys()]))
               .orderBy(desc(items.publishedAt))
               .limit(config.limit)
-              .all()
 
       return c.json({
         widget: { id: widget.id, type: widget.type, title: widget.title },
@@ -171,7 +173,7 @@ export function widgetRoutes(deps: AppDeps) {
     })
 
     .post('/:id/refresh', async (c) => {
-      const widget = owned(c.get('userId'), c.req.param('id'))
-      return c.json(await refreshSourcesNow(deps, sourceIdsOf(widget.id)))
+      const widget = await owned(c.get('userId'), c.req.param('id'))
+      return c.json(await refreshSourcesNow(deps, await sourceIdsOf(widget.id)))
     })
 }

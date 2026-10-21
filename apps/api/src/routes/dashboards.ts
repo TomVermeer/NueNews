@@ -10,6 +10,7 @@ import {
 } from '@nuenews/shared'
 import type { AppDeps, Env } from '../context'
 import { dashboards, widgets } from '../db/schema'
+import { firstRow, onlyRow } from '../db/query'
 import { ApiError, notFound, validate } from '../http'
 import { refreshSourcesNow } from '../services/refreshNow'
 import {
@@ -25,17 +26,17 @@ import {
 export function dashboardRoutes(deps: AppDeps) {
   const { db } = deps
 
-  const withWidgets = (dashboard: typeof dashboards.$inferSelect) => ({
+  const withWidgets = async (dashboard: typeof dashboards.$inferSelect) => ({
     id: dashboard.id,
     name: dashboard.name,
     position: dashboard.position,
-    widgets: db
-      .select()
-      .from(widgets)
-      .where(eq(widgets.dashboardId, dashboard.id))
-      .orderBy(widgets.y, widgets.x)
-      .all()
-      .map(toWidgetDto),
+    widgets: (
+      await db
+        .select()
+        .from(widgets)
+        .where(eq(widgets.dashboardId, dashboard.id))
+        .orderBy(widgets.y, widgets.x)
+    ).map(toWidgetDto),
   })
 
   const summary = (dashboard: typeof dashboards.$inferSelect) => ({
@@ -44,51 +45,49 @@ export function dashboardRoutes(deps: AppDeps) {
     position: dashboard.position,
   })
 
-  const owned = (userId: string, id: string) => {
-    const dashboard = ownedDashboard(db, userId, id)
+  const owned = async (userId: string, id: string) => {
+    const dashboard = await ownedDashboard(db, userId, id)
     if (!dashboard) throw notFound('Dashboard')
     return dashboard
   }
 
   return new Hono<Env>()
-    .get('/', (c) => {
-      const rows = db
+    .get('/', async (c) => {
+      const rows = await db
         .select()
         .from(dashboards)
         .where(eq(dashboards.userId, c.get('userId')))
         .orderBy(dashboards.position, dashboards.createdAt)
-        .all()
       return c.json({ dashboards: rows.map(summary) })
     })
 
-    .post('/', validate('json', createDashboardSchema), (c) => {
+    .post('/', validate('json', createDashboardSchema), async (c) => {
       const userId = c.get('userId')
-      const top = db
-        .select({ position: max(dashboards.position) })
-        .from(dashboards)
-        .where(eq(dashboards.userId, userId))
-        .get()
-      const created = db
-        .insert(dashboards)
-        .values({
-          userId,
-          name: c.req.valid('json').name,
-          position: (top?.position ?? -1) + 1,
-        })
-        .returning()
-        .get()
+      const top = firstRow(
+        await db
+          .select({ position: max(dashboards.position) })
+          .from(dashboards)
+          .where(eq(dashboards.userId, userId)),
+      )
+      const created = onlyRow(
+        await db
+          .insert(dashboards)
+          .values({
+            userId,
+            name: c.req.valid('json').name,
+            position: (top?.position ?? -1) + 1,
+          })
+          .returning(),
+      )
       return c.json(summary(created), 201)
     })
 
-    .put('/reorder', validate('json', reorderDashboardsSchema), (c) => {
+    .put('/reorder', validate('json', reorderDashboardsSchema), async (c) => {
       const userId = c.get('userId')
       const { ids } = c.req.valid('json')
-      const mine = db
-        .select({ id: dashboards.id })
-        .from(dashboards)
-        .where(eq(dashboards.userId, userId))
-        .all()
-        .map((row) => row.id)
+      const mine = (
+        await db.select({ id: dashboards.id }).from(dashboards).where(eq(dashboards.userId, userId))
+      ).map((row) => row.id)
 
       const sameSet =
         ids.length === mine.length &&
@@ -102,43 +101,46 @@ export function dashboardRoutes(deps: AppDeps) {
         )
       }
 
-      db.transaction(() => {
-        ids.forEach((id, position) => {
-          db.update(dashboards).set({ position }).where(eq(dashboards.id, id)).run()
-        })
+      await db.transaction(async (tx) => {
+        for (const [position, id] of ids.entries()) {
+          await tx.update(dashboards).set({ position }).where(eq(dashboards.id, id))
+        }
       })
       return c.json({ ids })
     })
 
-    .get('/:id', (c) => c.json(withWidgets(owned(c.get('userId'), c.req.param('id')))))
+    .get('/:id', async (c) =>
+      c.json(await withWidgets(await owned(c.get('userId'), c.req.param('id')))),
+    )
 
-    .patch('/:id', validate('json', updateDashboardSchema), (c) => {
-      const dashboard = owned(c.get('userId'), c.req.param('id'))
-      const updated = db
-        .update(dashboards)
-        .set({ name: c.req.valid('json').name })
-        .where(eq(dashboards.id, dashboard.id))
-        .returning()
-        .get()
+    .patch('/:id', validate('json', updateDashboardSchema), async (c) => {
+      const dashboard = await owned(c.get('userId'), c.req.param('id'))
+      const updated = onlyRow(
+        await db
+          .update(dashboards)
+          .set({ name: c.req.valid('json').name })
+          .where(eq(dashboards.id, dashboard.id))
+          .returning(),
+      )
       return c.json(summary(updated))
     })
 
-    .delete('/:id', (c) => {
-      const dashboard = owned(c.get('userId'), c.req.param('id'))
-      db.delete(dashboards).where(eq(dashboards.id, dashboard.id)).run()
+    .delete('/:id', async (c) => {
+      const dashboard = await owned(c.get('userId'), c.req.param('id'))
+      await db.delete(dashboards).where(eq(dashboards.id, dashboard.id))
       return c.body(null, 204)
     })
 
-    .put('/:id/layout', validate('json', saveLayoutSchema), (c) => {
-      const dashboard = owned(c.get('userId'), c.req.param('id'))
+    .put('/:id/layout', validate('json', saveLayoutSchema), async (c) => {
+      const dashboard = await owned(c.get('userId'), c.req.param('id'))
       const { widgets: positions, removed } = c.req.valid('json')
 
-      const existing = db
-        .select({ id: widgets.id })
-        .from(widgets)
-        .where(eq(widgets.dashboardId, dashboard.id))
-        .all()
-        .map((row) => row.id)
+      const existing = (
+        await db
+          .select({ id: widgets.id })
+          .from(widgets)
+          .where(eq(widgets.dashboardId, dashboard.id))
+      ).map((row) => row.id)
       const unknown = [...positions.map((p) => p.id), ...removed].filter(
         (id) => !existing.includes(id),
       )
@@ -151,21 +153,21 @@ export function dashboardRoutes(deps: AppDeps) {
       }
 
       const now = deps.now()
-      db.transaction(() => {
+      await db.transaction(async (tx) => {
         if (removed.length > 0) {
-          db.delete(widgets)
+          await tx
+            .delete(widgets)
             .where(and(eq(widgets.dashboardId, dashboard.id), inArray(widgets.id, removed)))
-            .run()
         }
         for (const { id, x, y, w, h } of positions.filter((p) => !removed.includes(p.id))) {
-          db.update(widgets).set({ x, y, w, h, updatedAt: now }).where(eq(widgets.id, id)).run()
+          await tx.update(widgets).set({ x, y, w, h, updatedAt: now }).where(eq(widgets.id, id))
         }
       })
-      return c.json(withWidgets(dashboard))
+      return c.json(await withWidgets(dashboard))
     })
 
     .post('/:id/widgets', validate('json', createWidgetSchema), async (c) => {
-      const dashboard = owned(c.get('userId'), c.req.param('id'))
+      const dashboard = await owned(c.get('userId'), c.req.param('id'))
       const body = c.req.valid('json')
 
       if (!AVAILABLE_WIDGET_TYPES.includes(body.type)) {
@@ -179,25 +181,26 @@ export function dashboardRoutes(deps: AppDeps) {
       const refs = sourceRefsFor(body.type, body.config)
       const now = deps.now()
       const size = DEFAULT_SIZE[body.type]
-      const layout = body.layout ?? { x: 0, y: nextFreeY(db, dashboard.id), ...size }
+      const layout = body.layout ?? { x: 0, y: await nextFreeY(db, dashboard.id), ...size }
       const config = widgetConfigSchemas[body.type].parse(body.config)
 
-      const { widget, newSourceIds } = db.transaction(() => {
-        const widget = db
-          .insert(widgets)
-          .values({
-            dashboardId: dashboard.id,
-            type: body.type,
-            title: body.title,
-            color: body.color ?? null,
-            config,
-            ...layout,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning()
-          .get()
-        const { newSourceIds } = linkWidgetSources(db, widget.id, refs, now)
+      const { widget, newSourceIds } = await db.transaction(async (tx) => {
+        const widget = onlyRow(
+          await tx
+            .insert(widgets)
+            .values({
+              dashboardId: dashboard.id,
+              type: body.type,
+              title: body.title,
+              color: body.color ?? null,
+              config,
+              ...layout,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .returning(),
+        )
+        const { newSourceIds } = await linkWidgetSources(tx, widget.id, refs, now)
         return { widget, newSourceIds }
       })
 

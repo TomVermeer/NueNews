@@ -62,7 +62,7 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     running = true
     try {
       const started = now()
-      const due = selectDueSources(deps.db, deps.registry, started, batchLimit)
+      const due = await selectDueSources(deps.db, deps.registry, started, batchLimit)
       const tasks = groupByHost(due).map((group) => async () => {
         for (const source of group) await refreshSource(deps, source, now())
       })

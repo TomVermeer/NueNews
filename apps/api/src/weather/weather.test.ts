@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import type { Db } from '../db/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HttpClient, HttpResponse } from '../lib/http'
 import { freshDb, NOW } from '../test/helpers'
@@ -109,15 +110,15 @@ describe('parseGeocoding', () => {
 
 describe('getWeather', () => {
   const place = { lat: 52.3731, lon: 4.8922 }
-  let db: ReturnType<typeof freshDb>
+  let db: Db
   let get: ReturnType<typeof vi.fn<HttpClient['get']>>
   let http: HttpClient
   let clock: Date
 
   const deps = () => ({ db, http, now: () => clock })
 
-  beforeEach(() => {
-    db = freshDb()
+  beforeEach(async () => {
+    db = await freshDb()
     clock = NOW
     get = vi.fn<HttpClient['get']>(async () => respond(fixture('forecast.json')))
     http = { get }

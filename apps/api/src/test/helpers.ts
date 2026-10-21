@@ -1,8 +1,12 @@
-import { vi } from 'vitest'
+import { getTableName, is, sql } from 'drizzle-orm'
+import { PgTable } from 'drizzle-orm/pg-core'
+import { afterAll, vi } from 'vitest'
 import { createApp } from '../app'
 import type { AppDeps } from '../context'
 import type { NormalizedItem, SourceKind } from '@nuenews/shared'
-import { createDb, type Db } from '../db/client'
+import { createDb, type Database, type Db } from '../db/client'
+import { onlyRow } from '../db/query'
+import * as schema from '../db/schema'
 import { dashboards, sources, widgetSources, widgets } from '../db/schema'
 import { ensureLocalUser } from '../db/seed'
 import { createRegistry } from '../providers/registry'
@@ -53,40 +57,66 @@ export function makeRegistry(provider: Provider) {
   return createRegistry([provider])
 }
 
-/** An in-memory database with the local user, a dashboard, a widget and one linked source. */
-export function seedSourceWithWidget(db: Db, overrides: Partial<typeof sources.$inferInsert> = {}) {
-  const userId = ensureLocalUser(db)
-  const dashboard = db.insert(dashboards).values({ userId, name: 'Home' }).returning().get()
-  const widget = db
-    .insert(widgets)
-    .values({ dashboardId: dashboard.id, type: 'feed', title: 'News', config: {} })
-    .returning()
-    .get()
-  const source = db
-    .insert(sources)
-    .values({
-      kind: 'rss',
-      key: 'https://example.com/feed.xml',
-      nextFetchAt: new Date(NOW.getTime() - 1000),
-      ...overrides,
-    })
-    .returning()
-    .get()
-  db.insert(widgetSources).values({ widgetId: widget.id, sourceId: source.id }).run()
+/** The local user, a dashboard, a widget and one linked source. */
+export async function seedSourceWithWidget(
+  db: Db,
+  overrides: Partial<typeof sources.$inferInsert> = {},
+) {
+  const userId = await ensureLocalUser(db)
+  const dashboard = onlyRow(
+    await db.insert(dashboards).values({ userId, name: 'Home' }).returning(),
+  )
+  const widget = onlyRow(
+    await db
+      .insert(widgets)
+      .values({ dashboardId: dashboard.id, type: 'feed', title: 'News', config: {} })
+      .returning(),
+  )
+  const source = onlyRow(
+    await db
+      .insert(sources)
+      .values({
+        kind: 'rss',
+        key: 'https://example.com/feed.xml',
+        nextFetchAt: new Date(NOW.getTime() - 1000),
+        ...overrides,
+      })
+      .returning(),
+  )
+  await db.insert(widgetSources).values({ widgetId: widget.id, sourceId: source.id })
   return { userId, dashboard, widget, source }
 }
 
-export function freshDb(): Db {
-  return createDb(':memory:')
+// Starting Postgres (even in-process) takes a moment, so each test file starts one and every test
+// begins by emptying it. Test files run in separate workers, so they never share a database.
+let shared: Promise<Database> | undefined
+const tableNames = Object.values(schema)
+  .filter((value) => is(value, PgTable))
+  .map((table) => getTableName(table as PgTable))
+
+afterAll(async () => {
+  if (shared) await (await shared).close()
+})
+
+/** An empty, fully migrated database. */
+export async function freshDb(): Promise<Db> {
+  shared ??= createDb()
+  const { db } = await shared
+  await db.execute(
+    sql.raw(
+      `TRUNCATE ${tableNames.map((name) => `"${name}"`).join(', ')} RESTART IDENTITY CASCADE`,
+    ),
+  )
+  return db
 }
 
 /** The whole API on an in-memory database with a scripted provider, fixed clock and no network. */
-export function createTestApp(
+export async function createTestApp(
   behaviour: Parameters<typeof fakeProvider>[0] = {},
   overrides: Partial<AppDeps> & { registryKinds?: SourceKind[] } = {},
 ) {
-  const db = freshDb()
-  const userId = ensureLocalUser(db)
+  const db = await freshDb()
+  const userId = await ensureLocalUser(db)
   const { provider, fetch } = fakeProvider(behaviour)
   const deps: AppDeps = {
     db,
