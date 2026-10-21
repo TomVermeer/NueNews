@@ -83,6 +83,11 @@ function cancel() {
   editor.stopEditing()
 }
 
+function renameWidget(widget: WidgetDto, title: string) {
+  if (!activeId.value) return
+  widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, title })
+}
+
 async function createDashboard(name: string) {
   const created = await dashboardMutations.create.mutateAsync(name)
   void router.push({ name: 'dashboard', params: { id: created.id } })
@@ -173,6 +178,7 @@ const firstName = ref('Home')
       @refresh="(widget) => refreshWidgets([widget])"
       @settings="(widget) => editor.openSettings(widget.id)"
       @remove="(widget) => draft.remove(widget.id)"
+      @rename="renameWidget"
     />
 
     <AddWidgetPanel

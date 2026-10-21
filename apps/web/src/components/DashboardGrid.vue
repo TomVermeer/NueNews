@@ -20,6 +20,7 @@ defineEmits<{
   refresh: [widget: WidgetDto]
   settings: [widget: WidgetDto]
   remove: [widget: WidgetDto]
+  rename: [widget: WidgetDto, title: string]
 }>()
 
 const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, widget])))
@@ -58,6 +59,7 @@ const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, wi
         @refresh="$emit('refresh', byId.get(item.i)!)"
         @settings="$emit('settings', byId.get(item.i)!)"
         @remove="$emit('remove', byId.get(item.i)!)"
+        @rename="(title) => $emit('rename', byId.get(item.i)!, title)"
       >
         <WidgetBody :widget="byId.get(item.i)!" />
       </WidgetFrame>

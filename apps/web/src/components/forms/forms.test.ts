@@ -19,8 +19,8 @@ async function lookUp(wrapper: ReturnType<typeof mount>, index: number, text: st
   await inputs[index]!.setValue(text)
   await wrapper
     .findAll('button')
-    .find((b) => b.text() === 'Look up' && !b.attributes('disabled'))!
-    .trigger('click')
+    .filter((b) => b.text() === 'Look up')
+    [index]!.trigger('click')
   await flushPromises()
 }
 
@@ -105,6 +105,27 @@ describe('FeedForm', () => {
     ).toBe('https://x.example/f')
   })
 
+  it('suggests the feed name as the title, counting extra feeds', async () => {
+    fakeApi.on('POST sources/resolve', {
+      body: { kind: 'rss', key: 'https://a.example/f', title: 'Tweakers' },
+    })
+    const wrapper = mount(FeedForm)
+    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('News')
+
+    await lookUp(wrapper, 0, 'a.example')
+    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('Tweakers')
+
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Add another feed'))!
+      .trigger('click')
+    fakeApi.on('POST sources/resolve', {
+      body: { kind: 'rss', key: 'https://b.example/f', title: 'The Verge' },
+    })
+    await lookUp(wrapper, 1, 'b.example')
+    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('Tweakers +1')
+  })
+
   it('lets you remove a feed once there is more than one', async () => {
     const wrapper = mount(FeedForm)
     expect(wrapper.find('[aria-label="Remove feed 1"]').exists()).toBe(false)
@@ -138,10 +159,25 @@ describe('YouTubeForm', () => {
     expect(fakeApi.callsTo('POST sources/resolve')[0]!.args.json.kind).toBe('youtube')
     expect(wrapper.emitted('submit')![0]).toEqual([
       {
-        title: 'YouTube',
+        title: 'Fire',
         config: { channels: [{ input: 'UCsBjURrPoezykLs9EqgamOA', label: 'Fire' }], limit: 6 },
       },
     ])
+  })
+
+  it('suggests the channel name as the title until you type your own', async () => {
+    fakeApi.on('POST sources/resolve', {
+      body: { kind: 'youtube', key: 'UCsBjURrPoezykLs9EqgamOA', title: 'Fireship' },
+    })
+    const wrapper = mount(YouTubeForm)
+    expect((wrapper.get('#yt-title').element as HTMLInputElement).value).toBe('YouTube')
+
+    await lookUp(wrapper, 0, '@Fireship')
+    expect((wrapper.get('#yt-title').element as HTMLInputElement).value).toBe('Fireship')
+
+    await wrapper.get('#yt-title').setValue('Dev videos')
+    await wrapper.get('input[aria-label="Name for channel 1"]').setValue('Fire')
+    expect((wrapper.get('#yt-title').element as HTMLInputElement).value).toBe('Dev videos')
   })
 })
 
@@ -212,10 +248,42 @@ describe('WeatherForm', () => {
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')![0]).toEqual([
       {
-        title: 'Weather',
+        title: 'Weather · Utrecht',
         config: { location: { name: 'Utrecht', lat: 52.09, lon: 5.12 }, units: 'imperial' },
       },
     ])
+  })
+
+  it('keeps a title you typed when you choose a place', async () => {
+    vi.useFakeTimers()
+    fakeApi.on('GET geocode', { body: { results: places } })
+    const wrapper = mount(WeatherForm)
+    await wrapper.get('#weather-title').setValue('Home')
+    await wrapper.get('#weather-search').setValue('Utrecht')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    await wrapper.get('ul[aria-label="Search results"] button').trigger('click')
+
+    expect((wrapper.get('#weather-title').element as HTMLInputElement).value).toBe('Home')
+  })
+
+  it('does not rename an existing widget when its place changes', async () => {
+    vi.useFakeTimers()
+    fakeApi.on('GET geocode', { body: { results: places } })
+    const wrapper = mount(WeatherForm, {
+      props: {
+        initial: {
+          title: 'Home weather',
+          config: { location: { name: 'Delft', lat: 52, lon: 4.36 }, units: 'metric' },
+        },
+      },
+    })
+    await wrapper.get('#weather-search').setValue('Utrecht')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    await wrapper.get('ul[aria-label="Search results"] button').trigger('click')
+
+    expect((wrapper.get('#weather-title').element as HTMLInputElement).value).toBe('Home weather')
   })
 
   it('prefills from an existing widget', () => {

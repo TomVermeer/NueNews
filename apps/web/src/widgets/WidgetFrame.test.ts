@@ -16,6 +16,16 @@ describe('WidgetFrame', () => {
     expect(wrapper.text()).toContain('Body content')
   })
 
+  it('only lets you rename the title while editing', async () => {
+    expect(render({ editing: false }).find('[aria-label="Rename widget"]').exists()).toBe(false)
+
+    const wrapper = render({ editing: true })
+    await wrapper.get('[aria-label="Rename widget"]').trigger('click')
+    await wrapper.get('input').setValue('Tech')
+    await wrapper.get('input').trigger('keydown.enter')
+    expect(wrapper.emitted('rename')).toEqual([['Tech']])
+  })
+
   describe('in view mode', () => {
     it('offers a refresh button and no editing controls', async () => {
       const wrapper = render({ editing: false })

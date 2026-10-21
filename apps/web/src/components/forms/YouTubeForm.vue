@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { Plus, X } from 'lucide-vue-next'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, toRef } from 'vue'
 import type { YouTubeConfig } from '@nuenews/shared'
+import { useAutoTitle } from '../../composables/useAutoTitle'
+import { suggestTitle } from '../../lib/titles'
 import ResolveInput from './ResolveInput.vue'
 
 const props = defineProps<{
@@ -15,9 +17,18 @@ const form = reactive({
   channels: (props.initial?.config.channels ?? [{ input: '' }]).map((c) => ({
     input: c.input,
     label: c.label ?? '',
+    name: '',
   })),
   limit: props.initial?.config.limit ?? 3,
 })
+
+const autoTitle = useAutoTitle(
+  toRef(form, 'title'),
+  computed(() =>
+    suggestTitle(form.channels.map((c) => c.label.trim() || c.name).filter((name) => name)),
+  ),
+  { auto: !props.initial },
+)
 
 const attempted = ref(false)
 const resolved = computed(() => form.channels.filter((c) => c.input))
@@ -52,7 +63,13 @@ defineExpose({ submit })
   <form class="space-y-4" @submit.prevent="submit">
     <div>
       <label class="field-label" for="yt-title">Title</label>
-      <input id="yt-title" v-model="form.title" class="field" maxlength="80" />
+      <input
+        id="yt-title"
+        v-model="form.title"
+        class="field"
+        maxlength="80"
+        @input="autoTitle.markEdited()"
+      />
     </div>
 
     <fieldset>
@@ -65,6 +82,7 @@ defineExpose({ submit })
               kind="youtube"
               :label="`Channel ${index + 1}`"
               placeholder="@handle, channel address or channel ID"
+              @resolved="(result) => (channel.name = result.title ?? '')"
             />
             <input
               v-if="channel.input"
@@ -89,7 +107,7 @@ defineExpose({ submit })
       <button
         type="button"
         class="btn btn-ghost mt-2 !px-0"
-        @click="form.channels.push({ input: '', label: '' })"
+        @click="form.channels.push({ input: '', label: '', name: '' })"
       >
         <Plus class="size-4" aria-hidden="true" /> Add another channel
       </button>

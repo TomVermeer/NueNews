@@ -89,3 +89,13 @@ Use the Material type scale. Map roles to Tailwind classes and don't invent size
 - Images that carry no information use `alt=""`. Thumbnails are decorative because the title next to them says the same thing.
 - Use semantic HTML (`section`, `h2`/`h3` in order, `ul`/`li`, `button`, `a`) before reaching for ARIA.
 - Don't rely on hover to reveal essential actions; they must also be reachable by keyboard and touch.
+
+### Widget conventions
+
+Patterns settled while tuning the first widgets. New widgets (RoyalRoad and later) start from these.
+
+- **Titles tell instances apart.** A new widget's default title comes from its content, not just its type: weather uses "Weather · City", feed and YouTube use the first source's name, with "+N" for more (`suggestTitle`, `useAutoTitle`). The title follows that suggestion until the user types their own. Existing widgets never get renamed automatically. In edit mode the title on the card is a button that renames it inline (Enter or blur saves, Esc cancels).
+- **Group by source when a widget mixes several.** Each source gets a group: a header row, then its items. The header is an avatar (32px circle, letter fallback), the source name as a link to the source (new tab, `noopener noreferrer`), a count in body small on the right, and a 1px `line` divider that spans the full card width (`-mx-4 px-4`). Groups are 24px apart; the header and its items 16px.
+- **Items scroll sideways inside a group** (`overflow-x-auto`, fixed-width cards that don't shrink) when they are thumbnails; vertical lists stay vertical.
+- **Hotlinked images** (thumbnails, avatars) use `referrerpolicy="no-referrer"`, `loading="lazy"` and `alt=""`, and always have a placeholder for when there is no image.
+- **Data a feed doesn't provide** (e.g. a channel avatar) comes from the provider's optional `fetchIcon`, once, best effort. See the exception in `CLAUDE.md`; don't add other fields this way without asking.

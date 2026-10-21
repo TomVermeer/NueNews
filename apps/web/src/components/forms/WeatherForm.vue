@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { LoaderCircle, MapPin } from 'lucide-vue-next'
-import { onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, toRef, watch } from 'vue'
 import type { GeocodeResult, WeatherConfig } from '@nuenews/shared'
 import { api, unwrap } from '../../api/client'
+import { useAutoTitle } from '../../composables/useAutoTitle'
 
 const props = defineProps<{
   initial?: { title: string; config: Partial<WeatherConfig> }
@@ -15,6 +16,12 @@ const form = reactive({
   location: props.initial?.config.location ?? null,
   units: props.initial?.config.units ?? ('metric' as 'metric' | 'imperial'),
 })
+
+const autoTitle = useAutoTitle(
+  toRef(form, 'title'),
+  computed(() => (form.location ? `Weather · ${form.location.name}` : undefined)),
+  { auto: !props.initial },
+)
 
 const query = ref('')
 const results = ref<GeocodeResult[]>([])
@@ -75,7 +82,13 @@ defineExpose({ submit })
   <form class="space-y-4" @submit.prevent="submit">
     <div>
       <label class="field-label" for="weather-title">Title</label>
-      <input id="weather-title" v-model="form.title" class="field" maxlength="80" />
+      <input
+        id="weather-title"
+        v-model="form.title"
+        class="field"
+        maxlength="80"
+        @input="autoTitle.markEdited()"
+      />
     </div>
 
     <div>

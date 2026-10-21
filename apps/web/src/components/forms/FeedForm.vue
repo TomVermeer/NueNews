@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { Plus, X } from 'lucide-vue-next'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, toRef } from 'vue'
 import { feedConfigSchema, type FeedConfig } from '@nuenews/shared'
+import { useAutoTitle } from '../../composables/useAutoTitle'
+import { suggestTitle } from '../../lib/titles'
 import ResolveInput from './ResolveInput.vue'
 
 const props = defineProps<{
@@ -17,6 +19,7 @@ const form = reactive({
   sources: (props.initial?.config.sources ?? [{ url: '' }]).map((s) => ({
     url: s.url,
     label: s.label ?? '',
+    name: '',
   })),
   limit: props.initial?.config.limit ?? defaults.limit,
   excerpt: props.initial?.config.excerpt ?? defaults.excerpt,
@@ -24,6 +27,14 @@ const form = reactive({
   unreadDots: props.initial?.config.unreadDots ?? defaults.unreadDots,
   variant: props.initial?.config.variant ?? defaults.variant,
 })
+
+const autoTitle = useAutoTitle(
+  toRef(form, 'title'),
+  computed(() =>
+    suggestTitle(form.sources.map((s) => s.label.trim() || s.name).filter((name) => name)),
+  ),
+  { auto: !props.initial },
+)
 
 const attempted = ref(false)
 const resolvedSources = computed(() => form.sources.filter((s) => s.url))
@@ -62,7 +73,13 @@ defineExpose({ submit })
   <form class="space-y-4" @submit.prevent="submit">
     <div>
       <label class="field-label" for="feed-title">Title</label>
-      <input id="feed-title" v-model="form.title" class="field" maxlength="80" />
+      <input
+        id="feed-title"
+        v-model="form.title"
+        class="field"
+        maxlength="80"
+        @input="autoTitle.markEdited()"
+      />
     </div>
 
     <fieldset>
@@ -75,6 +92,7 @@ defineExpose({ submit })
               kind="rss"
               :label="`Feed address ${index + 1}`"
               placeholder="Website, feed address or r/subreddit page"
+              @resolved="(result) => (source.name = result.title ?? '')"
             />
             <input
               v-if="source.url"
@@ -99,7 +117,7 @@ defineExpose({ submit })
       <button
         type="button"
         class="btn btn-ghost mt-2 !px-0"
-        @click="form.sources.push({ url: '', label: '' })"
+        @click="form.sources.push({ url: '', label: '', name: '' })"
       >
         <Plus class="size-4" aria-hidden="true" /> Add another feed
       </button>

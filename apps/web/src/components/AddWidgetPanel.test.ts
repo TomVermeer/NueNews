@@ -55,7 +55,7 @@ describe('AddWidgetPanel (adding)', () => {
     expect(call!.args.param).toEqual({ id: 'd1' })
     expect(call!.args.json).toMatchObject({
       type: 'feed',
-      title: 'News',
+      title: 'A',
       config: { sources: [{ url: 'https://a.example/f' }], limit: 5 },
     })
     expect(wrapper.emitted('close')).toHaveLength(1)
