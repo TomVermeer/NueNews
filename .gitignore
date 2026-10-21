@@ -19,3 +19,6 @@ playwright-report/
 
 .DS_Store
 .claude/
+
+# local backups of personal data
+backups/

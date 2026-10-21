@@ -99,7 +99,7 @@ The code is ready. These steps need your accounts, so they cannot be done for yo
 
    ```powershell
    $env:DATABASE_URL = '<session pooler connection string>'
-   pnpm --filter @nuenews/api db:import-sqlite -- ./apps/api/data/nuenews.sqlite --user-id <your user ID>
+   pnpm --filter @nuenews/api db:import-sqlite -- ./data/nuenews.sqlite --user-id <your user ID>
    ```
 
    This also creates the tables. Run it once; running it again is harmless.
