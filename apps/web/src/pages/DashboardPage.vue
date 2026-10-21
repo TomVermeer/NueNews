@@ -14,11 +14,13 @@ import AddWidgetPanel from '../components/AddWidgetPanel.vue'
 import DashboardGrid from '../components/DashboardGrid.vue'
 import TopBar from '../components/TopBar.vue'
 import { useLayoutDraft } from '../composables/useLayoutDraft'
+import { useAuthStore } from '../stores/auth'
 import { useEditorStore } from '../stores/editor'
 
 const route = useRoute()
 const router = useRouter()
 const editor = useEditorStore()
+const auth = useAuthStore()
 const { editing, panel } = storeToRefs(editor)
 
 const dashboardsQuery = useDashboardsQuery()
@@ -146,6 +148,8 @@ const firstName = ref('Home')
       :saving="widgetMutations.saveLayout.isPending.value"
       :refreshing="refreshingIds.length > 0"
       :updated-at="updatedAt"
+      :can-sign-out="auth.configured"
+      @sign-out="auth.signOut()"
       @edit="editor.startEditing()"
       @cancel="cancel"
       @save="save"

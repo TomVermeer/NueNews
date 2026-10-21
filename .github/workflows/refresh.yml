@@ -1,0 +1,32 @@
+name: Refresh feeds
+
+# A free web service goes to sleep when nobody visits. This calls the app every 15 minutes, which
+# wakes it and refreshes every feed that is due, so the dashboard is up to date when you open it.
+# GitHub may delay scheduled runs, and pauses them after 60 days without activity in the repository
+# (open the Actions tab and re-enable the workflow if that happens).
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the refresh endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL and CRON_SECRET are not set yet, nothing to do."
+            exit 0
+          fi
+          # A sleeping service can take a minute to wake, hence the generous timeout.
+          curl --fail --silent --show-error --max-time 150 --retry 2 --retry-delay 20 \
+            --request POST \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/internal/tick"
+          echo

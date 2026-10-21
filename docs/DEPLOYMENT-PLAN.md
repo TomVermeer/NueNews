@@ -39,7 +39,9 @@ Done and verified: `pnpm lint`, format, typecheck and all tests (296 API, 150 we
 
 Done when: `pnpm test`, typecheck and lint pass on Postgres, the dev server runs against local Postgres, and a copy of the real data loads correctly.
 
-## Step 2: Authentication for one user (size M)
+## Step 2: Authentication (size M) — built and tested, waiting for the Supabase project
+
+The code is done: the API verifies Supabase tokens and refuses everything else, and the web app has a login page, a route guard, token-bearing API calls and a sign-out button. All of it is tested with signed test tokens and a fake Supabase client, and local development still runs with no login. What remains needs a real Supabase project (items 1 and the final check below).
 
 1. **Set up Supabase Auth (S).** Create the project, turn public sign-ups off, create your user (email and password), and note the project URL and keys.
 2. **API verifies sessions (M).** Add middleware that checks the bearer token (`Authorization: Bearer …`) against the project's signing keys using `jose`. `currentUserId` comes from the verified token. `createApp` keeps taking it as a dependency, so tests sign their own tokens and need no Supabase. Return `401` for a missing or invalid token, keep `/health` public, and link the first login to the imported data.
@@ -49,14 +51,16 @@ Done when: `pnpm test`, typecheck and lint pass on Postgres, the dev server runs
 
 Done when: nothing under `/api/v1` answers without a valid session, only you can log in, and the dashboard works after login.
 
-## Step 3: Make it deployable (size M)
+## Step 3: Make it deployable (size M) — built and tested
 
-1. **One deployable (M).** Have the API serve `apps/web/dist` (static files plus a single-page-app fallback for `/d/:id`) and add a real production build for the web and the API. Add a `GET /health` endpoint, graceful shutdown, and a `Dockerfile`.
-2. **Configuration (S).** Document every environment variable in `.env.example`: `DATABASE_URL`, Supabase URL and keys, `USER_AGENT`, `PORT`, the internal-endpoint secret. The app should fail fast with a clear message when one is missing.
-3. **Scheduler on a host that sleeps (M).** Free hosts stop idle services, and the in-process timers stop with them. Add refresh-on-open (when the dashboard loads, refresh any stale sources first) and an `POST /internal/tick` endpoint, called every 15 to 30 minutes by a free external cron (a GitHub Actions schedule, or cron-job.org). The in-process scheduler can stay for local development.
-4. **CI to deploy (S).** CI already runs lint, format, typecheck, tests and build on the GitHub repo. Add deploy-on-merge to `main` once a host is chosen, and a Postgres service for CI if we ever need one beyond PGlite.
-5. **Backups and export (M).** Supabase's free tier has no point-in-time recovery (verify), so schedule a weekly `pg_dump` in GitHub Actions and store it as a private artifact, and build the dashboard import/export that is already on the known-gaps list.
-6. **Basic monitoring (S).** An uptime check on `/health` and readable logs. The in-app source errors already show failing feeds.
+1. **One deployable. Done.** In production the API serves `apps/web/dist` too (`src/web.ts`): hashed assets are cached for a year, `index.html` never, page paths like `/d/abc` get `index.html`, and `/api`, `/internal` and missing files stay real 404s. Basic security headers are on. `GET /api/v1/health` is public and is the host's health check.
+2. **Configuration. Done.** Every setting is in `.env.example` and `render.yaml`. In production the API refuses to start without `SUPABASE_URL`, so a missing setting cannot leave it open.
+3. **Scheduler on a host that sleeps. Done.** `POST /internal/tick` (turned on by `CRON_SECRET`) runs one polling pass, and the GitHub Actions workflow `refresh.yml` calls it every 15 minutes, which also wakes the service. When the service wakes, the in-process scheduler runs a pass immediately as well, so no separate refresh-on-open was needed. The tick endpoint is guarded by the secret alone, a user session does not open it.
+4. **CI to deploy. Done.** `render.yaml` is a Render Blueprint with auto-deploy from the GitHub repository. CI already gates changes with lint, format, typecheck, tests and build.
+5. **Backups. Done, export still open.** `backup.yml` dumps the database weekly with `pg_dump`, encrypts it with a passphrase and keeps it for 90 days as a workflow artifact. A dashboard import/export feature is still on the known-gaps list.
+6. **Basic monitoring.** Render shows logs and runs the health check. An uptime pinger is optional, since the 15 minute cron already hits the service.
+
+Not tested against the real services: the Render build (see the checklist) and a Supabase-issued token. Both paths are covered with locally generated keys and a fake Supabase client.
 
 ## Step 4: Deploy (size M)
 
@@ -79,14 +83,39 @@ Render facts that shape the work:
 - Supabase's direct database connection is IPv6-only. Use the **session-mode pooler on port 5432**, which is IPv4.
 - A free Supabase project pauses after a week without activity. The scheduler's regular database use keeps it active.
 
-Steps:
+### What only the owner can do
 
-1. Create the Supabase project (database and Auth). Apply the migrations by starting the API against it once. Turn public sign-ups off and create the owner's user.
-2. Import your data with `db:import-sqlite -- <file> --user-id <the Supabase user id>`.
-3. Create the Render web service from the GitHub repo, set the environment variables, and connect auto-deploy.
-4. Deploy, then run the smoke test: log in, dashboards and widgets load, a refresh works, a request without a session returns `401`, `/health` answers.
-5. Add the cron (GitHub Actions or cron-job.org) calling the guarded tick endpoint every 15 minutes. This both refreshes sources and keeps the service awake. Confirm sources refresh while nobody is using the site.
-6. Optional: a custom domain.
+The code is ready. These steps need your accounts, so they cannot be done for you. Do them in this order. If you connect the official [Render](https://render.com/docs/mcp-server) and [Supabase](https://supabase.com/docs/guides/getting-started/mcp) MCP servers to Claude, most of steps 1 to 6 can be done by Claude with your approval.
+
+1. **Supabase project.** Sign up at supabase.com, create a project in a region near you (Frankfurt), and save the database password.
+2. **Login settings.** In Authentication, under Sign In / Providers, make sure Email is on and turn **off** "Allow new users to sign up". Then under Users, add your own user with an email and password (auto-confirm), and copy that user's **ID** (a UUID).
+3. **Collect five values** from the Supabase dashboard:
+   - Project URL (Project Settings, API).
+   - The `anon` public key (same page).
+   - The JWT secret, only if the project is an older one that shows a "JWT Secret" and no signing keys. Otherwise leave it out.
+   - The **Session pooler** connection string, port 5432, with your database password filled in (Project Settings, Database). Use this one, the direct connection is IPv6-only.
+   - The user ID from step 2.
+4. **Load your data.** From this folder, with Windows PowerShell (the dev server does not need to be stopped):
+
+   ```powershell
+   $env:DATABASE_URL = '<session pooler connection string>'
+   pnpm --filter @nuenews/api db:import-sqlite -- ./apps/api/data/nuenews.sqlite --user-id <your user ID>
+   ```
+
+   This also creates the tables. Run it once; running it again is harmless.
+
+5. **Push the code.** Commit the pending work (ask Claude) and push to GitHub, since Render deploys from the repository.
+6. **Render service.** Sign up at render.com with GitHub (a card may be asked for), choose New, Blueprint, and pick the NueNews repository. Fill in the prompts: `DATABASE_URL` (the pooler string), `SUPABASE_URL`, `VITE_SUPABASE_URL` (the same URL), `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_JWT_SECRET` (empty unless step 3 said otherwise). Render generates `CRON_SECRET` for you: open the service's Environment tab and copy it. Wait for the first deploy, then note the address (`https://nuenews-….onrender.com`).
+7. **GitHub secrets** (repository Settings, Secrets and variables, Actions): `APP_URL` (the Render address), `CRON_SECRET` (copied from Render), `BACKUP_DATABASE_URL` (the pooler string), `BACKUP_PASSPHRASE` (invent one and keep it in a password manager, without it the backups cannot be opened). Then open the Actions tab and run "Refresh feeds" and "Back up database" once by hand to check that they succeed.
+8. **Try it.** Open the Render address, sign in, check your dashboards, widgets and colors are there, and press refresh. To let a friend in, add them under Supabase, Authentication, Users, and send them the address.
+
+Decisions that are yours: whether the GitHub repository stays public (the backup is encrypted either way), whether you want a custom domain, and whether Render's card prompt is acceptable.
+
+Things to watch at the first deploy, because they could not be tested here:
+
+- The Render build command uses `corepack enable` for pnpm. If the build fails on pnpm, change it in `render.yaml` (or the Render dashboard) and tell Claude the log.
+- Supabase may rename settings in its dashboard. The names above are from the current docs.
+- The first visit after a long idle takes about a minute while the service wakes.
 
 Known free-tier trade-offs to accept for now:
 

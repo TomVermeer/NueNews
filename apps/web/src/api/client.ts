@@ -1,7 +1,20 @@
 import { hc } from 'hono/client'
 import type { AppType } from '@nuenews/api'
+import { accessToken, authClient } from '../auth/client'
 
-export const api = hc<AppType>('/').api.v1
+// Every request carries the session token. A 401 means the session is gone (expired or revoked),
+// so sign out, which sends the user to the login page.
+export const api = hc<AppType>('/', {
+  headers: async (): Promise<Record<string, string>> => {
+    const token = await accessToken()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  },
+  fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await globalThis.fetch(input, init)
+    if (response.status === 401 && authClient) void authClient.auth.signOut()
+    return response
+  },
+}).api.v1
 
 /** An error answer from the API, in the API's standard `{ error: { code, message } }` shape. */
 export class ApiRequestError extends Error {

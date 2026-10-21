@@ -125,7 +125,7 @@ export async function createTestApp(
     ),
     fetchContext: fakeContext(),
     now: () => NOW,
-    currentUserId: () => userId,
+    authenticate: async () => ({ id: userId }),
     minRefreshIntervalSec: 60,
     ...overrides,
   }

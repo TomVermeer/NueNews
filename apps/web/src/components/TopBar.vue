@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, LayoutDashboard, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
+import { Check, LayoutDashboard, LogOut, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
 import { nextTick, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { DashboardSummary } from '../api/types'
@@ -13,6 +13,8 @@ const props = defineProps<{
   saving: boolean
   refreshing: boolean
   updatedAt: Date | null
+  /** Show the sign out button (only when the app has a login). */
+  canSignOut?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -24,6 +26,7 @@ const emit = defineEmits<{
   'create-dashboard': [name: string]
   'rename-dashboard': [id: string, name: string]
   'delete-dashboard': [id: string]
+  'sign-out': []
 }>()
 
 const creating = ref(false)
@@ -178,6 +181,15 @@ function confirmDelete() {
         </button>
         <button type="button" class="btn" :disabled="!activeId" @click="emit('edit')">
           <Pencil class="size-4" aria-hidden="true" /> Edit layout
+        </button>
+        <button
+          v-if="canSignOut"
+          type="button"
+          class="icon-btn"
+          aria-label="Sign out"
+          @click="emit('sign-out')"
+        >
+          <LogOut class="size-4" aria-hidden="true" />
         </button>
       </template>
     </div>

@@ -146,4 +146,15 @@ describe('TopBar in edit mode', () => {
     expect(wrapper.find('[aria-label="Rename dashboard"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Delete dashboard"]').exists()).toBe(false)
   })
+
+  describe('sign out', () => {
+    it('is only offered when the app has a login', async () => {
+      const without = await render()
+      expect(without.wrapper.find('[aria-label="Sign out"]').exists()).toBe(false)
+
+      const withLogin = await render({ canSignOut: true } as never)
+      await withLogin.wrapper.get('[aria-label="Sign out"]').trigger('click')
+      expect(withLogin.wrapper.emitted('sign-out')).toHaveLength(1)
+    })
+  })
 })
