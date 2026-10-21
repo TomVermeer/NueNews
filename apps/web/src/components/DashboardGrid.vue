@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { GridItem, GridLayout } from 'grid-layout-plus'
 import { computed } from 'vue'
-import { GRID_COLUMNS } from '@nuenews/shared'
+import { GRID_COLUMNS, type WidgetColor } from '@nuenews/shared'
 import type { WidgetDto } from '../api/types'
 import type { GridItemData } from '../composables/useLayoutDraft'
 import { widgetIcon } from '../lib/widgetTypes'
@@ -21,6 +21,7 @@ defineEmits<{
   settings: [widget: WidgetDto]
   remove: [widget: WidgetDto]
   rename: [widget: WidgetDto, title: string]
+  color: [widget: WidgetDto, color: WidgetColor | null]
 }>()
 
 const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, widget])))
@@ -55,11 +56,13 @@ const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, wi
         :title="byId.get(item.i)!.title"
         :icon="widgetIcon(byId.get(item.i)!.type)"
         :editing="editing"
+        :color="byId.get(item.i)!.color"
         :refreshing="refreshingIds?.includes(item.i)"
         @refresh="$emit('refresh', byId.get(item.i)!)"
         @settings="$emit('settings', byId.get(item.i)!)"
         @remove="$emit('remove', byId.get(item.i)!)"
         @rename="(title) => $emit('rename', byId.get(item.i)!, title)"
+        @color="(color) => $emit('color', byId.get(item.i)!, color)"
       >
         <WidgetBody :widget="byId.get(item.i)!" />
       </WidgetFrame>

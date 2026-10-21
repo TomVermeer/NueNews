@@ -145,6 +145,7 @@ export function toWidgetDto(widget: typeof widgets.$inferSelect) {
     dashboardId: widget.dashboardId,
     type: widget.type,
     title: widget.title,
+    color: widget.color,
     config: widget.config,
     layout: { x: widget.x, y: widget.y, w: widget.w, h: widget.h },
     createdAt: widget.createdAt,

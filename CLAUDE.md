@@ -26,6 +26,8 @@ pnpm --filter @nuenews/web exec vitest run src/pages -t "saves the layout"
 pnpm --filter @nuenews/api db:generate   # new SQL migration after editing apps/api/src/db/schema.ts
 ```
 
+The dev API (`tsx watch`) migrates the database only when it starts. Editing `schema.ts` restarts it before the new migration exists, so after `db:generate` touch `apps/api/src/index.ts` to restart it, or the running API will 500 on the missing column.
+
 The dev port is 5273 on purpose (see `strictPort` in `apps/web/vite.config.ts`); don't change it back to 5173.
 
 If the dev page is black in the owner's normal Chrome but works in incognito, the cause is a browser extension, not the app: the "TTV AdBlock Plus" extension answered Vite's script requests (`/@vite/client`, `/src/main.ts`) with HTML or raw source. It was removed; check extensions first if it happens again (`chrome.exe --disable-extensions http://localhost:5273` is a quick test).

@@ -58,7 +58,12 @@ export function widgetRoutes(deps: AppDeps) {
       const { updated, newSourceIds } = db.transaction(() => {
         const updated = db
           .update(widgets)
-          .set({ title: body.title ?? widget.title, config, updatedAt: now })
+          .set({
+            title: body.title ?? widget.title,
+            color: body.color === undefined ? widget.color : body.color,
+            config,
+            updatedAt: now,
+          })
           .where(eq(widgets.id, widget.id))
           .returning()
           .get()

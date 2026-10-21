@@ -220,6 +220,49 @@ describe('PATCH /widgets/:id', () => {
   })
 })
 
+describe('widget color', () => {
+  it('starts without a color, which means the default card', async () => {
+    const t = createTestApp(threeItemsPerSource)
+    const id = await widgetWith(t, ['https://a.example/feed'])
+    const dashboard = (await t.call('GET', '/dashboards')).body.dashboards[0]
+    const detail = await t.call('GET', `/dashboards/${dashboard.id}`)
+    expect(detail.body.widgets.find((w: { id: string }) => w.id === id).color).toBeNull()
+  })
+
+  it('can be chosen when the widget is created', async () => {
+    const t = createTestApp(threeItemsPerSource)
+    const dashboard = await t.call('POST', '/dashboards', { name: 'Home' })
+    const res = await t.call('POST', `/dashboards/${dashboard.body.id}/widgets`, {
+      ...feedWidget(['https://a.example/feed']),
+      color: 'blue',
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.color).toBe('blue')
+  })
+
+  it('can be changed on its own, and reset to the default with null', async () => {
+    const t = createTestApp(threeItemsPerSource)
+    const id = await widgetWith(t, ['https://a.example/feed'])
+
+    const set = await t.call('PATCH', `/widgets/${id}`, { color: 'teal' })
+    expect(set.status).toBe(200)
+    expect(set.body).toMatchObject({ color: 'teal', title: 'News' })
+
+    const renamed = await t.call('PATCH', `/widgets/${id}`, { title: 'Tech' })
+    expect(renamed.body).toMatchObject({ color: 'teal', title: 'Tech' })
+
+    const reset = await t.call('PATCH', `/widgets/${id}`, { color: null })
+    expect(reset.body.color).toBeNull()
+  })
+
+  it('only accepts colors from the palette', async () => {
+    const t = createTestApp(threeItemsPerSource)
+    const id = await widgetWith(t, ['https://a.example/feed'])
+    expect((await t.call('PATCH', `/widgets/${id}`, { color: '#ff0000' })).status).toBe(400)
+    expect((await t.call('PATCH', `/widgets/${id}`, { color: 'chartreuse' })).status).toBe(400)
+  })
+})
+
 describe('DELETE /widgets/:id', () => {
   it('removes the widget and its links but keeps shared sources', async () => {
     const t = createTestApp()

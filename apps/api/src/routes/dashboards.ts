@@ -189,6 +189,7 @@ export function dashboardRoutes(deps: AppDeps) {
             dashboardId: dashboard.id,
             type: body.type,
             title: body.title,
+            color: body.color ?? null,
             config,
             ...layout,
             createdAt: now,

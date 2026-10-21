@@ -8,6 +8,7 @@ import {
   useDashboardsQuery,
   useWidgetMutations,
 } from '../api/queries'
+import type { WidgetColor } from '@nuenews/shared'
 import type { WidgetDto } from '../api/types'
 import AddWidgetPanel from '../components/AddWidgetPanel.vue'
 import DashboardGrid from '../components/DashboardGrid.vue'
@@ -86,6 +87,11 @@ function cancel() {
 function renameWidget(widget: WidgetDto, title: string) {
   if (!activeId.value) return
   widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, title })
+}
+
+function recolorWidget(widget: WidgetDto, color: WidgetColor | null) {
+  if (!activeId.value) return
+  widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, color })
 }
 
 async function createDashboard(name: string) {
@@ -179,6 +185,7 @@ const firstName = ref('Home')
       @settings="(widget) => editor.openSettings(widget.id)"
       @remove="(widget) => draft.remove(widget.id)"
       @rename="renameWidget"
+      @color="recolorWidget"
     />
 
     <AddWidgetPanel

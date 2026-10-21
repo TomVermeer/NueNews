@@ -207,6 +207,38 @@ describe('edit mode', () => {
     expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('News')
   })
 
+  it('renames a widget from its card', async () => {
+    serve()
+    fakeApi.on('PATCH widgets/:id', { body: { ...news, title: 'Tech' } })
+    const { wrapper } = await open()
+    await button(wrapper, 'Edit layout')!.trigger('click')
+
+    await wrapper.findAll('[aria-label="Rename widget"]')[0]!.trigger('click')
+    const input = wrapper.get('input[aria-label="Widget title"]')
+    await input.setValue('Tech')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+
+    const [call] = fakeApi.callsTo('PATCH widgets/:id')
+    expect(call!.args.param).toEqual({ id: 'w1' })
+    expect(call!.args.json).toMatchObject({ title: 'Tech' })
+  })
+
+  it('changes the color of a widget from its card', async () => {
+    serve()
+    fakeApi.on('PATCH widgets/:id', { body: { ...news, color: 'blue' } })
+    const { wrapper } = await open()
+    await button(wrapper, 'Edit layout')!.trigger('click')
+
+    await wrapper.findAll('[aria-label="Widget color"]')[0]!.trigger('click')
+    ;(document.body.querySelector('input[aria-label="Blue"]') as HTMLInputElement).click()
+    await flushPromises()
+
+    const [call] = fakeApi.callsTo('PATCH widgets/:id')
+    expect(call!.args.param).toEqual({ id: 'w1' })
+    expect(call!.args.json).toMatchObject({ color: 'blue' })
+  })
+
   it('adds a widget through the panel and refreshes the dashboard', async () => {
     serve()
     fakeApi.on('POST sources/resolve', {

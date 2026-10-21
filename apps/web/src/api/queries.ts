@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, type MaybeRefOrGetter, toValue } from 'vue'
-import type { CreateWidget } from '@nuenews/shared'
+import type { CreateWidget, WidgetColor } from '@nuenews/shared'
 import { api, unwrap } from './client'
 import type { DashboardDetail, DashboardSummary, WidgetData, WidgetDto } from './types'
 
@@ -104,12 +104,13 @@ export function useWidgetMutations() {
         dashboardId: string
         id: string
         title?: string
+        color?: WidgetColor | null
         config?: Record<string, unknown>
       }) =>
         unwrap<WidgetDto>(
           api.widgets[':id'].$patch({
             param: { id: vars.id },
-            json: { title: vars.title, config: vars.config },
+            json: { title: vars.title, color: vars.color, config: vars.config },
           }),
         ),
       onSuccess: (_widget, vars) => {

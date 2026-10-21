@@ -3,6 +3,7 @@
 @theme {
   --color-canvas: #0f1115;
   --color-card: #171a21;
+  --color-card-high: #1e222c;
   --color-line: #262b38;
   --color-ink: #e6e8ee;
   --color-ink-muted: #8b92a5;
@@ -15,6 +16,59 @@
 
 body {
   @apply bg-canvas text-ink antialiased;
+}
+
+/* Widget color tones: a dark surface, a lighter border and a bright swatch per hue.
+   Surfaces share one luminance so muted text keeps at least 4.5:1 contrast on all of them. */
+:root {
+  --widget-bg: var(--color-card);
+  --widget-line: var(--color-line);
+  --widget-swatch: var(--color-card);
+}
+[data-widget-color='red'] {
+  --widget-bg: #471d21;
+  --widget-line: #7a3a3f;
+  --widget-swatch: #df757e;
+}
+[data-widget-color='orange'] {
+  --widget-bg: #3b2618;
+  --widget-line: #674630;
+  --widget-swatch: #d48048;
+}
+[data-widget-color='amber'] {
+  --widget-bg: #322915;
+  --widget-line: #5a4c2a;
+  --widget-swatch: #b98f2b;
+}
+[data-widget-color='green'] {
+  --widget-bg: #14301d;
+  --widget-line: #295738;
+  --widget-swatch: #28aa53;
+}
+[data-widget-color='teal'] {
+  --widget-bg: #132f2d;
+  --widget-line: #285552;
+  --widget-swatch: #27a69d;
+}
+[data-widget-color='blue'] {
+  --widget-bg: #1a2c40;
+  --widget-line: #344f6e;
+  --widget-swatch: #5f98d9;
+}
+[data-widget-color='indigo'] {
+  --widget-bg: #222654;
+  --widget-line: #42478c;
+  --widget-swatch: #888ee3;
+}
+[data-widget-color='purple'] {
+  --widget-bg: #371f4d;
+  --widget-line: #623d82;
+  --widget-swatch: #b37ee1;
+}
+[data-widget-color='pink'] {
+  --widget-bg: #451c36;
+  --widget-line: #76385f;
+  --widget-swatch: #dd6fb5;
 }
 
 @layer components {

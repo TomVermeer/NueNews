@@ -16,6 +16,25 @@ describe('WidgetFrame', () => {
     expect(wrapper.text()).toContain('Body content')
   })
 
+  it('tints the card with its color, and only offers the picker while editing', async () => {
+    const plain = mount(WidgetFrame, {
+      props: { title: 'News', icon: Rss, editing: false },
+    })
+    expect(plain.get('section').attributes('data-widget-color')).toBeUndefined()
+    expect(plain.find('[aria-label="Widget color"]').exists()).toBe(false)
+
+    const wrapper = mount(WidgetFrame, {
+      props: { title: 'News', icon: Rss, editing: true, color: 'blue' },
+      attachTo: document.body,
+    })
+    expect(wrapper.get('section').attributes('data-widget-color')).toBe('blue')
+
+    await wrapper.get('[aria-label="Widget color"]').trigger('click')
+    ;(document.body.querySelector('input[aria-label="Pink"]') as HTMLInputElement).click()
+    expect(wrapper.emitted('color')).toEqual([['pink']])
+    wrapper.unmount()
+  })
+
   it('only lets you rename the title while editing', async () => {
     expect(render({ editing: false }).find('[aria-label="Rename widget"]').exists()).toBe(false)
 

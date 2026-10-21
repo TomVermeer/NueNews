@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import type { SourceKind, WidgetType } from '@nuenews/shared'
+import type { SourceKind, WidgetColor, WidgetType } from '@nuenews/shared'
 
 const id = () =>
   text('id')
@@ -42,6 +42,8 @@ export const widgets = sqliteTable(
       .references(() => dashboards.id, { onDelete: 'cascade' }),
     type: text('type').$type<WidgetType>().notNull(),
     title: text('title').notNull(),
+    /** Null: the default card color. */
+    color: text('color').$type<WidgetColor>(),
     config: text('config', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     x: integer('x').notNull().default(0),
     y: integer('y').notNull().default(0),

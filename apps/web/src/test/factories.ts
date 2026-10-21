@@ -63,6 +63,7 @@ export function widget(id: string, overrides: Partial<WidgetDto> = {}): WidgetDt
     dashboardId: 'd1',
     type: 'feed',
     title: `Widget ${id}`,
+    color: null,
     config: {
       sources: [{ url: 'https://example.com/feed.xml' }],
       limit: 5,

@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { ArrowLeft, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import type { CreateWidget, FeedConfig, WeatherConfig, YouTubeConfig } from '@nuenews/shared'
+import type {
+  CreateWidget,
+  FeedConfig,
+  WeatherConfig,
+  WidgetColor,
+  YouTubeConfig,
+} from '@nuenews/shared'
 import { ApiRequestError } from '../api/client'
 import { useWidgetMutations } from '../api/queries'
 import type { WidgetDto } from '../api/types'
 import { ADDABLE_WIDGET_TYPES, WIDGET_TYPE_INFO, type AddableWidgetType } from '../lib/widgetTypes'
+import ColorPicker from './ColorPicker.vue'
 import FeedForm from './forms/FeedForm.vue'
 import WeatherForm from './forms/WeatherForm.vue'
 import YouTubeForm from './forms/YouTubeForm.vue'
@@ -21,6 +28,7 @@ const emit = defineEmits<{ close: [] }>()
 const mutations = useWidgetMutations()
 const picked = ref<AddableWidgetType | null>(null)
 const error = ref('')
+const color = ref<WidgetColor | null>(props.widget?.color ?? null)
 const form = ref<{ submit: () => void } | null>(null)
 
 const type = computed<AddableWidgetType | null>(
@@ -39,12 +47,18 @@ async function save(value: { title: string; config: FeedConfig | YouTubeConfig |
         dashboardId: props.dashboardId,
         id: props.widget.id,
         title: value.title,
+        color: color.value,
         config: value.config as unknown as Record<string, unknown>,
       })
     } else {
       await mutations.create.mutateAsync({
         dashboardId: props.dashboardId,
-        widget: { type: type.value, title: value.title, config: value.config } as CreateWidget,
+        widget: {
+          type: type.value,
+          title: value.title,
+          color: color.value ?? undefined,
+          config: value.config,
+        } as CreateWidget,
       })
     }
     emit('close')
@@ -105,6 +119,10 @@ async function save(value: { title: string; config: FeedConfig | YouTubeConfig |
         <FeedForm v-if="type === 'feed'" ref="form" :initial="initial" @submit="save" />
         <YouTubeForm v-else-if="type === 'youtube'" ref="form" :initial="initial" @submit="save" />
         <WeatherForm v-else ref="form" :initial="initial" @submit="save" />
+        <fieldset class="mt-5">
+          <legend class="field-label">Color</legend>
+          <ColorPicker v-model="color" class="-mx-2" />
+        </fieldset>
         <p v-if="error" class="mt-4 text-sm text-amber-400" role="alert">{{ error }}</p>
       </template>
     </div>

@@ -99,6 +99,45 @@ describe('AddWidgetPanel (adding)', () => {
   })
 })
 
+describe('AddWidgetPanel (color)', () => {
+  it('creates a widget with the chosen color', async () => {
+    fakeApi.on('POST sources/resolve', {
+      body: { kind: 'rss', key: 'https://a.example/f', title: 'A' },
+    })
+    fakeApi.on('POST dashboards/:id/widgets', { status: 201, body: widget('new') })
+    const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
+
+    await button(wrapper, 'Feed list').trigger('click')
+    await wrapper.get('input[aria-label="Feed address 1"]').setValue('a.example')
+    await button(wrapper, 'Look up').trigger('click')
+    await flushPromises()
+    await wrapper.get('input[aria-label="Green"]').setValue(true)
+    await button(wrapper, 'Add widget').trigger('click')
+    await flushPromises()
+
+    const [call] = fakeApi.callsTo('POST dashboards/:id/widgets')
+    expect(call!.args.json).toMatchObject({ color: 'green' })
+  })
+
+  it('shows the current color of a widget and can change it back to the default', async () => {
+    const tinted = widget('w1', { color: 'purple' })
+    fakeApi.on('PATCH widgets/:id', { body: tinted })
+    const { wrapper } = await mountApp(AddWidgetPanel, {
+      props: { dashboardId: 'd1', widget: tinted },
+    })
+    expect((wrapper.get('input[aria-label="Purple"]').element as HTMLInputElement).checked).toBe(
+      true,
+    )
+
+    await wrapper.get('input[aria-label="Default"]').setValue(true)
+    await button(wrapper, 'Save changes').trigger('click')
+    await flushPromises()
+
+    const [call] = fakeApi.callsTo('PATCH widgets/:id')
+    expect(call!.args.json).toMatchObject({ color: null })
+  })
+})
+
 describe('AddWidgetPanel (editing)', () => {
   const existing = widget('w1', {
     title: 'My news',
