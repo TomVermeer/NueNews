@@ -1,0 +1,29 @@
+# NueNews on the home server. Copy this folder to ~/server/nuenews/ (or run it from the repo),
+# create a .env next to it from .env.example, then:
+#
+#   docker compose up -d --build
+#
+# No port is published on purpose: Docker bypasses the firewall for published ports. Caddy reaches
+# the container by name over the shared `web` network (reverse_proxy nuenews:3000).
+# See docs/DEPLOYMENT-HOMESERVER.md.
+services:
+  nuenews:
+    image: ${NUENEWS_IMAGE:-nuenews:local}
+    build:
+      context: ..
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?set VITE_SUPABASE_URL in .env}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:?set VITE_SUPABASE_ANON_KEY in .env}
+    container_name: nuenews
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      USER_AGENT: ${USER_AGENT:-NueNews/0.1 (personal dashboard)}
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
