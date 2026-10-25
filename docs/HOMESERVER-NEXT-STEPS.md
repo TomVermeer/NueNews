@@ -4,23 +4,25 @@ These are outlines to pick up later, not approved plans. When you resume, presen
 
 ## Where things stand
 
-Done and committed (`8aac8fb`, branch `feature/deploy_to_homeserver`): the [Dockerfile](../Dockerfile), [deploy/compose.yaml](../deploy/compose.yaml), [deploy/.env.example](../deploy/.env.example) and [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md). The image was built and run here against a Postgres container and came up healthy. The app still uses Supabase for the database and login, and Render keeps running.
+Written (branch `feature/deploy_to_homeserver`): the [Dockerfile](../Dockerfile), [deploy/compose.yaml](../deploy/compose.yaml), [deploy/.env.example](../deploy/.env.example) and [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md). The route is: build the image on the PC, send it to the server with `docker save`, `scp` and `docker load`, and run it with `compose.yaml` and a `.env`. The server does not need the source code.
+
+Tested on the PC: the image builds, and after a save and a load it starts through `deploy/compose.yaml`, becomes healthy and answers by name from another container on the `web` network. A scratch Postgres stood in for Supabase. The app still uses Supabase for the database and login, and Render keeps running.
 
 Not done yet, and only the owner can do it:
 
 - Push the branch.
-- Follow [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md) on the server: clone, create `deploy/.env`, `docker compose up -d --build`, add the Caddy block and the tunnel route.
-- Not tested yet: the `docker exec caddy wget …` health check in that doc, and a real Supabase login through the tunnel.
+- Follow [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md): build and send the image, create `.env` on the server, `docker compose up -d`, add the Caddy block and the tunnel route.
+- Not tested yet: running it on the real server, and a real Supabase login through the tunnel.
 
 ## Plan A: Automatic image builds (GitHub Actions, ghcr.io)
 
-Goal: pushing to `main` builds the image and publishes it, and the server pulls it. No inbound access to the server is needed. Do not use a self-hosted runner on the server, especially if the repository is public.
+Goal: replace the manual build, `docker save` and `scp` with GitHub. Pushing to `main` builds the image and publishes it, and the server pulls it. No inbound access to the server is needed. Do not use a self-hosted runner on the server, especially if the repository is public.
 
 Outline:
 
 1. Add a workflow, for example `.github/workflows/image.yml`, that runs on pushes to `main` (after CI), builds the image with `docker/build-push-action` and pushes `ghcr.io/<account>/nuenews` tagged `latest` and with the commit hash. It needs `packages: write` and the built-in `GITHUB_TOKEN`.
 2. Pass `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as build arguments from repository **variables** (they are public values baked into the web app).
-3. Change the server's compose file to use the published image. Catch to remember: `deploy/compose.yaml` requires the `VITE_` values with `:?`, and Compose checks that for every command, including `pull`. Relax it, or split the build part into a separate file.
+3. Point the server at the published image: set `NUENEWS_IMAGE=ghcr.io/<account>/nuenews:latest` in the server's `.env`. `deploy/compose.yaml` already supports this and no longer needs the `VITE_` values. Then drop steps 1 and 2 (build and send) from [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md), and the "Updating" section becomes `docker compose pull` and `up -d`.
 4. Decide how the server updates: by hand (`docker compose pull` then `up -d`), or automatically on a timer or with a watcher container.
 5. Validate: the workflow goes green, the server pulls the image, the container becomes healthy, and rolling back to an older commit-hash tag works.
 

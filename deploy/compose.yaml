@@ -1,19 +1,16 @@
-# NueNews on the home server. Copy this folder to ~/server/nuenews/ (or run it from the repo),
-# create a .env next to it from .env.example, then:
+# NueNews on the home server. The server needs only this file and a .env next to it (made from
+# .env.example). It does not need the source code: it runs an image that was built elsewhere.
 #
-#   docker compose up -d --build
+#   docker compose up -d
+#
+# The image is built on your PC (see docs/DEPLOYMENT-HOMESERVER.md) and loaded on the server as
+# nuenews:local. Later it can come from a registry instead: set NUENEWS_IMAGE in .env.
 #
 # No port is published on purpose: Docker bypasses the firewall for published ports. Caddy reaches
 # the container by name over the shared `web` network (reverse_proxy nuenews:3000).
-# See docs/DEPLOYMENT-HOMESERVER.md.
 services:
   nuenews:
     image: ${NUENEWS_IMAGE:-nuenews:local}
-    build:
-      context: ..
-      args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?set VITE_SUPABASE_URL in .env}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:?set VITE_SUPABASE_ANON_KEY in .env}
     container_name: nuenews
     restart: unless-stopped
     environment:

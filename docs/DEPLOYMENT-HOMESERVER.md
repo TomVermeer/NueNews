@@ -1,8 +1,8 @@
 # Deploying NueNews on the home server
 
-NueNews runs as one container (the API, the scheduler and the built web app, on port 3000). It still uses Supabase for the database and for login, so this move changes where the app runs and nothing else. Moving the database or the login comes later, see the end of this page.
+NueNews runs as one container (the API, the scheduler and the built web app, on port 3000). It still uses Supabase for the database and for login, so this move changes where the app runs and nothing else. Moving the database or the login comes later, see [HOMESERVER-NEXT-STEPS.md](HOMESERVER-NEXT-STEPS.md).
 
-The container joins the Docker network `web`. Caddy reaches it by name, and the Cloudflare Tunnel reaches Caddy, so no port is opened on the router or published on the server.
+You build the image on your PC and send it to the server. The server never needs the source code, only the image and two small files. The container joins the Docker network `web`: Caddy reaches it by name, and the Cloudflare Tunnel reaches Caddy, so no port is opened on the router or published on the server.
 
 ```
 browser -> Cloudflare -> tunnel -> caddy:80 -> nuenews:3000 -> Supabase (database, login)
@@ -10,38 +10,74 @@ browser -> Cloudflare -> tunnel -> caddy:80 -> nuenews:3000 -> Supabase (databas
 
 The files involved:
 
-| File                                          | What it is                                                                        |
-| --------------------------------------------- | --------------------------------------------------------------------------------- |
-| [Dockerfile](../Dockerfile)                   | Builds the web app, then a small image that runs the API with the web app inside. |
-| [.dockerignore](../.dockerignore)             | Keeps `.env` files, backups and local databases out of the image.                 |
-| [deploy/compose.yaml](../deploy/compose.yaml) | Runs the container on the `web` network. It builds the image from the repository. |
-| [deploy/.env.example](../deploy/.env.example) | The settings the container needs. Copy it to `deploy/.env`.                       |
+| File                                          | What it is                                                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [Dockerfile](../Dockerfile)                   | Builds the web app, then a small image that runs the API with the web app inside.                                  |
+| [.dockerignore](../.dockerignore)             | Keeps `.env` files, backups and local databases out of the image.                                                  |
+| [deploy/compose.yaml](../deploy/compose.yaml) | Runs the image on the `web` network. This is one of the two files the server needs.                                |
+| [deploy/.env.example](../deploy/.env.example) | The settings the container reads when it starts. Copy it to `.env` on the server. This is the other file it needs. |
 
 ## Before you start
 
-These are already done, according to the server notes: Docker with Compose, the `web` network, Caddy, and the tunnel. You also need:
+- **Server:** already done, according to the server notes: Docker with Compose, the `web` network, Caddy and the tunnel. SSH from your PC to `nue@192.168.1.15` works.
+- **PC:** Docker Desktop is running. If `docker` is not found, open a new terminal window, because terminals opened before the install do not see it.
+- **Supabase values**, the same ones Render uses (see [DEPLOYMENT-PLAN.md](DEPLOYMENT-PLAN.md), "What only the owner can do"): the project URL, the public key (publishable or `anon`), the Session pooler connection string, and the JWT secret only for an older project.
+- Both computers are 64-bit Intel/AMD machines, so an image built on the PC runs on the server as it is.
 
-- The Supabase values you used for Render (see [DEPLOYMENT-PLAN.md](DEPLOYMENT-PLAN.md), "What only the owner can do").
-- This work pushed to GitHub, so the server can fetch it.
+Each command says where it runs. Run them one line at a time.
 
-Commands below run **on the server** (over SSH) unless it says otherwise. Run them one line at a time.
+## 1. Build the image (on the PC)
 
-## 1. Get the code onto the server
+In PowerShell, in the NueNews folder. The two values are public: they are baked into the web app, which is why they are needed here and not on the server.
+
+```powershell
+docker build -t nuenews:local --build-arg VITE_SUPABASE_URL=https://<project>.supabase.co --build-arg VITE_SUPABASE_ANON_KEY=<public key> .
+```
+
+## 2. Send it to the server
+
+Save the image to a file (on the PC). It is about 125 MB. A file is safer than piping it, because PowerShell can corrupt binary data in a pipe.
+
+```powershell
+docker save -o nuenews.tar nuenews:local
+```
+
+Make the folder (on the server):
 
 ```bash
-cd ~/server
+mkdir -p ~/server/nuenews
+```
+
+Copy the image and the two small files (on the PC, in the NueNews folder):
+
+```powershell
+scp nuenews.tar nue@192.168.1.15:
+```
+
+```powershell
+scp deploy/compose.yaml nue@192.168.1.15:server/nuenews/compose.yaml
+```
+
+```powershell
+scp deploy/.env.example nue@192.168.1.15:server/nuenews/.env.example
+```
+
+Load the image and remove the file (on the server):
+
+```bash
+docker load -i ~/nuenews.tar
 ```
 
 ```bash
-git clone https://github.com/<your-account>/NueNews.git nuenews
+rm ~/nuenews.tar
 ```
 
-For a private repository, add a read-only deploy key to the repository (Settings, Deploy keys) and clone with the SSH address instead.
+`docker load` should say `Loaded image: nuenews:local`. You can delete `nuenews.tar` on the PC too.
 
-## 2. Create the settings file
+## 3. Create the settings file (on the server)
 
 ```bash
-cd ~/server/nuenews/deploy
+cd ~/server/nuenews
 ```
 
 ```bash
@@ -56,17 +92,13 @@ chmod 600 .env
 nano .env
 ```
 
-Fill in `DATABASE_URL` (the Supabase **Session pooler** string), `SUPABASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and, only for an older Supabase project, `SUPABASE_JWT_SECRET`. Leave `CRON_SECRET` out: the container stays awake, so its own scheduler refreshes the feeds.
+Fill in `DATABASE_URL` (the Supabase **Session pooler** string), `SUPABASE_URL` and, only for an older Supabase project, `SUPABASE_JWT_SECRET`. Leave `CRON_SECRET` out: the container stays awake, so its own scheduler refreshes the feeds.
 
-The two `VITE_` values are public and are baked into the web app when the image is built. If you change them, rebuild the image (step 3 again).
-
-## 3. Build and start
+## 4. Start it (on the server)
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
-
-The first build takes a few minutes on this laptop. Then check it:
 
 ```bash
 docker compose ps
@@ -78,15 +110,7 @@ The container should say `healthy` after about half a minute. If it does not:
 docker compose logs --tail 50
 ```
 
-Check that the app answers over the Docker network, the same way Caddy will reach it:
-
-```bash
-docker exec caddy wget -qO- http://nuenews:3000/api/v1/health
-```
-
-It should print `{"status":"ok"}`.
-
-## 4. Add it to Caddy
+## 5. Add it to Caddy (on the server)
 
 Edit `~/server/caddy/Caddyfile`. Once there is more than one site, the catch-all `:80` block becomes one block per hostname. `app.nuesoft.app` is an example, pick the name you want (one level deep, like `app.nuesoft.app`):
 
@@ -111,7 +135,7 @@ cd ~/server/caddy
 docker compose restart
 ```
 
-## 5. Add the tunnel route
+## 6. Add the tunnel route
 
 In the Cloudflare dashboard (Zero Trust, Networks, Tunnels, `home-server`) add a route:
 
@@ -121,7 +145,7 @@ In the Cloudflare dashboard (Zero Trust, Networks, Tunnels, `home-server`) add a
 
 Cloudflare creates the DNS record itself.
 
-## 6. Try it
+## 7. Try it
 
 Open `https://app.nuesoft.app` on your PC, sign in with your Supabase user, and check that your dashboards and widgets are there.
 
@@ -136,31 +160,47 @@ Both copies can run against the same Supabase database. Both run a scheduler, so
 
 ## Updating
 
-After you push a change:
+After a code change, repeat the build and the send, then restart the container. On the PC:
+
+```powershell
+docker build -t nuenews:local --build-arg VITE_SUPABASE_URL=https://<project>.supabase.co --build-arg VITE_SUPABASE_ANON_KEY=<public key> .
+```
+
+```powershell
+docker save -o nuenews.tar nuenews:local
+```
+
+```powershell
+scp nuenews.tar nue@192.168.1.15:
+```
+
+On the server:
+
+```bash
+docker load -i ~/nuenews.tar
+```
+
+```bash
+rm ~/nuenews.tar
+```
 
 ```bash
 cd ~/server/nuenews
 ```
 
 ```bash
-git pull
+docker compose up -d
 ```
+
+Compose notices the new image and replaces the container. Then remove the old, unused image layers:
 
 ```bash
-cd deploy
+docker image prune -f
 ```
 
-```bash
-docker compose up -d --build
-```
-
-To stop it: `docker compose down` in the `deploy` folder. The data lives in Supabase, so stopping or rebuilding loses nothing.
+To stop the app: `docker compose down` in `~/server/nuenews`. The data lives in Supabase, so stopping or replacing the container loses nothing. Sending the image by hand gets tedious; the plan to have GitHub build and publish it is in [HOMESERVER-NEXT-STEPS.md](HOMESERVER-NEXT-STEPS.md).
 
 ## What the server changes, and what it does not
 
 - The server has more downtime than Render: power or internet cuts and the 04:00 reboots. `restart: unless-stopped` brings the container back after a reboot.
 - Supabase's free tier pauses a project that has been inactive for a week. The scheduler queries the database every few minutes, but this has not been verified to count as activity. If the app ever stops loading, check the Supabase dashboard for a paused project and restore it.
-
-## Later
-
-Automatic image builds (GitHub Actions to ghcr.io, then the server pulls the image) and the database and login decision are separate steps. If the database moves to a container on this server, set up off-site backups first, because the server has one aging disk.

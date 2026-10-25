@@ -1,6 +1,6 @@
 # NueNews as one container: the API, the scheduler and the built web app, on port 3000.
 #
-#   docker build -t nuenews \
+#   docker build -t nuenews:local \
 #     --build-arg VITE_SUPABASE_URL=https://<project>.supabase.co \
 #     --build-arg VITE_SUPABASE_ANON_KEY=<publishable or anon key> .
 #
