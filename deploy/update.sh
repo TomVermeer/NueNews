@@ -3,7 +3,7 @@
 # this every 2 hours (see nuenews-update.timer); you can also run it by hand: ./update.sh
 #
 # It lives next to compose.yaml and .env on the server. To roll back, set NUENEWS_IMAGE in .env to a
-# specific tag (for example ghcr.io/tomvermeer/nuenews:abc1234): a pinned image is left alone.
+# specific tag (for example ghcr.io/tomvermeer/nuenews:sha-abc1234): a pinned image is left alone.
 set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
@@ -54,7 +54,7 @@ done
 if [ "$health" != "healthy" ]; then
   echo "nuenews is not healthy (status: ${health:-unknown}). Check: docker compose logs --tail 50" >&2
   echo "The container already runs the new image. To go back, pin NUENEWS_IMAGE in .env to the" >&2
-  echo "previous tag (ghcr.io/tomvermeer/nuenews:<commit>) and run ./update.sh." >&2
+  echo "previous tag (ghcr.io/tomvermeer/nuenews:sha-<commit>) and run ./update.sh." >&2
   exit 1
 fi
 

@@ -4,32 +4,21 @@ These are outlines to pick up later, not approved plans. When you resume, presen
 
 ## Where things stand
 
-Written (branch `feature/deploy_to_homeserver`): the [Dockerfile](../Dockerfile), [deploy/compose.yaml](../deploy/compose.yaml), [deploy/.env.example](../deploy/.env.example) and [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md). The route is: build the image on the PC, send it to the server with `docker save`, `scp` and `docker load`, and run it with `compose.yaml` and a `.env`. The server does not need the source code.
+Written on branch `feature/auto_deploy_homeserver`, not merged yet: automatic image builds (the `image` job in `.github/workflows/ci.yml`, which publishes to `ghcr.io/tomvermeer/nuenews` on a merge to `main`) and the timer-driven updater ([deploy/update.sh](../deploy/update.sh) with the two systemd units in `deploy/`). The server pulls the image; GitHub never connects to the server. The guide is [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md).
 
-Tested on the PC: the image builds, and after a save and a load it starts through `deploy/compose.yaml`, becomes healthy and answers by name from another container on the `web` network. A scratch Postgres stood in for Supabase. The app still uses Supabase for the database and login, and Render keeps running.
+Tested on the PC before this change: the image builds, and after a save and a load it starts through `deploy/compose.yaml`, becomes healthy and answers by name from another container on the `web` network. A scratch Postgres stood in for Supabase. The app still uses Supabase for the database and login, and Render keeps running.
 
 Not done yet, and only the owner can do it:
 
-- Push the branch.
-- Follow [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md): build and send the image, create `.env` on the server, `docker compose up -d`, add the Caddy block and the tunnel route.
+- Merge the branch.
+- The three GitHub setup items: the repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, branch protection for `main`, and making the package public after the first publish.
+- Copy the files to the server and install the timer, as in [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md).
+- The Render cutover: set `autoDeploy: false` in `render.yaml` first, keep the Render service about a week as a fallback, then delete it and `refresh.yml`.
 - Not tested yet: running it on the real server, and a real Supabase login through the tunnel.
 
-## Plan A: Automatic image builds (GitHub Actions, ghcr.io)
+## Plan A: done
 
-Goal: replace the manual build, `docker save` and `scp` with GitHub. Pushing to `main` builds the image and publishes it, and the server pulls it. No inbound access to the server is needed. Do not use a self-hosted runner on the server, especially if the repository is public.
-
-Outline:
-
-1. Add a workflow, for example `.github/workflows/image.yml`, that runs on pushes to `main` (after CI), builds the image with `docker/build-push-action` and pushes `ghcr.io/<account>/nuenews` tagged `latest` and with the commit hash. It needs `packages: write` and the built-in `GITHUB_TOKEN`.
-2. Pass `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as build arguments from repository **variables** (they are public values baked into the web app).
-3. Point the server at the published image: set `NUENEWS_IMAGE=ghcr.io/<account>/nuenews:latest` in the server's `.env`. `deploy/compose.yaml` already supports this and no longer needs the `VITE_` values. Then drop steps 1 and 2 (build and send) from [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md), and the "Updating" section becomes `docker compose pull` and `up -d`.
-4. Decide how the server updates: by hand (`docker compose pull` then `up -d`), or automatically on a timer or with a watcher container.
-5. Validate: the workflow goes green, the server pulls the image, the container becomes healthy, and rolling back to an older commit-hash tag works.
-
-Decisions for the owner:
-
-- Is the GitHub repository public or private? A private repository or private package means the server needs a read-only token to pull.
-- Manual or automatic updates on the server?
+Automatic image builds and the timer-driven updater are built. A merge to `main` builds the image and publishes it to `ghcr.io/tomvermeer/nuenews`, tagged `latest` and `sha-<short commit SHA>`. A systemd timer on the server runs `deploy/update.sh` every 2 hours to pull it. Rolling back is a pinned `NUENEWS_IMAGE` in the server's `.env`. Setup and operation are in [DEPLOYMENT-HOMESERVER.md](DEPLOYMENT-HOMESERVER.md).
 
 ## Plan B: Database and login
 
@@ -50,7 +39,6 @@ Outline:
 
 ## Small items
 
-- Add `name: nuenews` to `deploy/compose.yaml`, so Compose calls the project `nuenews` instead of `deploy`.
 - At the switch-over from Render: delete the Render service and the `refresh.yml` workflow (it only wakes Render). Keep `backup.yml` for as long as the database is on Supabase.
 - Unverified: whether the scheduler's regular queries keep a free Supabase project from pausing.
 - Still waiting from before: RoyalRoad provider, Playwright end-to-end tests, Reddit preset (see `CLAUDE.md`, "Where we left off").
