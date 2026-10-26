@@ -9,7 +9,10 @@ services:
     plan: free
     # Pick the region closest to the Supabase project (and to you).
     region: frankfurt
-    autoDeploy: true
+    # Off since the home server took over: a merge to main no longer deploys here. Render stays as a
+    # fallback; use "Manual Deploy" in the dashboard to update it. (The `refresh.yml` workflow keeps
+    # it awake and its feeds fresh.)
+    autoDeploy: false
     healthCheckPath: /api/v1/health
     # "corepack pnpm" runs the pnpm version pinned in package.json (the image is read-only, so "corepack enable" fails). The start command skips pnpm because it is not on the PATH at runtime. Dev dependencies are needed to
     # build the web app, and the API runs with tsx, so install them even though NODE_ENV is production.
