@@ -1,0 +1,29 @@
+# NueNews on the home server. The server needs only this file, a .env next to it (made from
+# .env.example) and update.sh. It does not need the source code: it runs an image that GitHub
+# Actions builds and publishes to ghcr.io when a pull request is merged to main.
+#
+#   docker compose up -d
+#
+# update.sh (run every 2 hours by the nuenews-update timer) pulls the newest image and recreates the
+# container. To pin a version, for example to roll back, set NUENEWS_IMAGE in .env.
+#
+# No port is published on purpose: Docker bypasses the firewall for published ports. Caddy reaches
+# the container by name over the shared `web` network (reverse_proxy nuenews:3000).
+name: nuenews
+
+services:
+  nuenews:
+    image: ${NUENEWS_IMAGE:-ghcr.io/tomvermeer/nuenews:latest}
+    container_name: nuenews
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      USER_AGENT: ${USER_AGENT:-NueNews/0.1 (personal dashboard)}
+    networks:
+      - web
+
+networks:
+  web:
+    external: true

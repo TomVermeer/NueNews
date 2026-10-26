@@ -30,7 +30,9 @@ const scheduler = createScheduler({ db, registry, ctx: fetchContext })
 const production = process.env.NODE_ENV === 'production'
 const cronSecret = process.env.CRON_SECRET
 if (production && !cronSecret) {
-  console.warn('CRON_SECRET is not set: feeds only refresh while the service is awake.')
+  console.info(
+    'CRON_SECRET is not set, so POST /internal/tick is off and only the built-in scheduler refreshes feeds. That is fine on a server that stays awake; a host that sleeps needs the secret.',
+  )
 }
 
 const app = createApp({

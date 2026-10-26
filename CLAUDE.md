@@ -99,6 +99,12 @@ Monorepo: `apps/api` (Hono + Drizzle/PostgreSQL), `apps/web` (Vue 3 + Tailwind v
 - Tell reviewers not to invent violations, to list the files that are clean, and to skip anything Prettier handles.
 - Tell subagents to skip generated files, `node_modules` and `__fixtures__`.
 
+## Deployment target
+
+- Now: Render + Supabase, see [docs/DEPLOYMENT-PLAN.md](docs/DEPLOYMENT-PLAN.md).
+- Next: the home server, as one Docker container: [Dockerfile](Dockerfile), [deploy/compose.yaml](deploy/compose.yaml) and [docs/DEPLOYMENT-HOMESERVER.md](docs/DEPLOYMENT-HOMESERVER.md). The server's own setup notes are in [docs/local/home-server-setup.md](docs/local/home-server-setup.md) (kept out of git).
+- The database and login stay on Supabase for now. Moving them is a separate step that is not decided yet.
+
 ## Where we left off
 
 Update this section when you finish a chunk of work, so the next session starts here.
@@ -107,7 +113,7 @@ Done: monorepo and tooling, database, RSS/Atom and YouTube providers, weather, s
 
 Next, in the order the owner chose:
 
-1. **Get it deployable, at no cost:** follow [docs/DEPLOYMENT-PLAN.md](docs/DEPLOYMENT-PLAN.md). Step 1 (PostgreSQL) is done locally: PGlite in dev and tests, `DATABASE_URL` for a real server, real data imported; only the hosted database is left. Hosting is decided: Render free web service (API, scheduler and web build as one service) plus Supabase (Postgres and Auth). Steps 1 to 3 are built and tested: Postgres, Supabase Auth login (invite-only), and the deployable unit (API serves the web build, `/internal/tick` for the GitHub Actions cron, `render.yaml`, encrypted weekly backup workflow). What is left is Step 4, which needs the owner's accounts: follow the checklist "What only the owner can do" in the plan. The open questions at the end of that plan need the owner's answers.
+1. **Get it deployable, at no cost:** follow [docs/DEPLOYMENT-PLAN.md](docs/DEPLOYMENT-PLAN.md). Step 1 (PostgreSQL) is done locally: PGlite in dev and tests, `DATABASE_URL` for a real server, real data imported; only the hosted database is left. Hosting is decided: Render free web service (API, scheduler and web build as one service) plus Supabase (Postgres and Auth). Steps 1 to 3 are built and tested: Postgres, Supabase Auth login (invite-only), and the deployable unit (API serves the web build, `/internal/tick` for the GitHub Actions cron, `render.yaml`, encrypted weekly backup workflow). Step 4 is done: the app runs on Render + Supabase. The move to the home server is in progress: the Dockerfile, `deploy/` and the homeserver doc are written and the image was built and run on the owner's PC. The route is: build the image on the PC, send it with `docker save`, `scp` and `docker load`, and the server needs only `deploy/compose.yaml` and a `.env`, not the source code. It has not been deployed to the server yet. Automatic image builds (GitHub Actions to ghcr.io) and the database and login decision come after that: the saved outlines are in [docs/HOMESERVER-NEXT-STEPS.md](docs/HOMESERVER-NEXT-STEPS.md).
 2. **RoyalRoad** provider and widget (deferred until after deployment), URL-list mode first. It uses the per-fiction feed at `/fiction/syndication/{id}` (not yet checked against the live site) and needs an "unread chapters" notion. A "follows" mode would need a logged-in session and is undecided; see the open questions in [docs/DESIGN.md](docs/DESIGN.md).
 3. **Playwright end-to-end tests** for drag, resize, save and add-widget, wired into CI (CI currently runs only lint, format check, typecheck, tests and build).
 4. Reddit preset (needs OAuth), sharing between users.

@@ -1,0 +1,14 @@
+# Install on the server as /etc/systemd/system/nuenews-update.service (see docs/DEPLOYMENT-HOMESERVER.md).
+# Runs update.sh once. The timer starts it; systemd never runs two copies at once.
+[Unit]
+Description=Update NueNews to the newest image
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+# The nue user is in the docker group, so nothing here runs as root.
+User=nue
+WorkingDirectory=/home/nue/server/nuenews
+ExecStart=/home/nue/server/nuenews/update.sh
+TimeoutStartSec=600

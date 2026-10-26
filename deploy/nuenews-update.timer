@@ -1,0 +1,11 @@
+# Install next to nuenews-update.service, then: sudo systemctl enable --now nuenews-update.timer
+[Unit]
+Description=Check for a new NueNews image every 2 hours
+
+[Timer]
+# After a reboot the container is already restarted by Docker; the first check comes a bit later.
+OnBootSec=5min
+OnUnitActiveSec=2h
+
+[Install]
+WantedBy=timers.target

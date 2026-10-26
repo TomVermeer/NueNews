@@ -5,7 +5,7 @@ coverage/
 .env
 .env.*
 !.env.example
-
+docs/local
 # local database
 *.sqlite
 *.sqlite-journal
