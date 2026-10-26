@@ -1,7 +1,7 @@
 # Render Blueprint: one free web service that runs the API, the scheduler and the web app.
 # In Render: New, Blueprint, pick this repository. The values marked "sync: false" are asked for
 # once in the dashboard (they are secrets or project addresses and never live in git).
-# See docs/DEPLOYMENT-PLAN.md for where each value comes from.
+# See docs/ARCHITECTURE.md (Configuration) for what each value is.
 services:
   - type: web
     name: nuenews

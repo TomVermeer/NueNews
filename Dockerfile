@@ -6,7 +6,7 @@
 #
 # The two VITE_ values are public and are baked into the web app, so they are build arguments.
 # Everything else (DATABASE_URL, SUPABASE_URL, ...) is read when the container starts. See
-# deploy/compose.yaml and docs/DEPLOYMENT-HOMESERVER.md.
+# deploy/compose.yaml and docs/ARCHITECTURE.md.
 
 # ---- Build the web app ----------------------------------------------------------------------
 FROM node:24-slim AS build

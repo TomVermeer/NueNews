@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-NueNews is a personal dashboard: a grid of widgets (feed lists, YouTube channels, weather) fed by third-party sites. It is single-user today but built so multi-user can be added later. [README.md](README.md) and [docs/DESIGN.md](docs/DESIGN.md) hold the full design; this file covers what is easy to miss.
+NueNews is a personal dashboard: a grid of widgets (feed lists, YouTube channels, weather) fed by third-party sites. It is single-user today but built so multi-user can be added later. [README.md](README.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) hold the full design; this file covers what is easy to miss.
 
 ## Commands
 
@@ -62,6 +62,15 @@ Monorepo: `apps/api` (Hono + Drizzle/PostgreSQL), `apps/web` (Vue 3 + Tailwind v
 - Reddit's RSS currently answers `429` for unauthenticated clients. Don't work around it by spoofing a browser; it needs OAuth.
 - Commits end with the co-author trailer in use in this repo's history.
 
+## Public repository
+
+This repository is public. Never commit infrastructure details or personal data: IP addresses (LAN or public), SSH users and hostnames, the owner's domains and subdomains, tunnel names or IDs, server file-system paths and service users, server schedules (reboots, maintenance), Supabase project refs, email addresses, or any secret value.
+
+- Use placeholders: `app.example.com`, `<server-user>`, `/path/to/nuenews`, `ghcr.io/<owner>/nuenews`. Name environment variables and secrets, never their values.
+- Details specific to the server go in `docs/local/`, which is gitignored.
+- Before committing docs, deploy files or config, search the diff for IP addresses, domains and home-directory paths.
+- Deleting a file doesn't remove it from git history. If something sensitive was already pushed, tell the owner instead of quietly removing it.
+
 ## Testing notes
 
 - API tests build the real app on an in-memory Postgres (PGlite) with a scripted fake provider (`apps/api/src/test/helpers.ts`, `createTestApp`, which is async). Each test file starts one PGlite and every test begins by emptying it (`freshDb`); the first test of a file is slower, hence the 30 s timeout in `apps/api/vitest.config.ts`. Provider tests use saved fixtures in `__fixtures__/` and never touch the network. Keep it that way.
@@ -101,8 +110,8 @@ Monorepo: `apps/api` (Hono + Drizzle/PostgreSQL), `apps/web` (Vue 3 + Tailwind v
 
 ## Deployment target
 
-- Now: the home server, as one Docker container: [Dockerfile](Dockerfile), [deploy/compose.yaml](deploy/compose.yaml) and [docs/DEPLOYMENT-HOMESERVER.md](docs/DEPLOYMENT-HOMESERVER.md). A merge to `main` makes the `image` job in `.github/workflows/ci.yml` publish `ghcr.io/tomvermeer/nuenews` (tags `latest` and `sha-<short commit>`); a systemd timer on the server runs [deploy/update.sh](deploy/update.sh) every 2 hours to pull it. Rolling back means pinning `NUENEWS_IMAGE` in the server's `.env`. The server's own setup notes are in [docs/local/home-server-setup.md](docs/local/home-server-setup.md) (kept out of git).
-- Fallback: Render + Supabase, see [docs/DEPLOYMENT-PLAN.md](docs/DEPLOYMENT-PLAN.md). Its auto-deploy is off (`render.yaml`), so it only changes through a manual deploy. It is to be deleted, together with `refresh.yml`, after about a week of the home server running well.
+- Now: the home server, as one Docker container: [Dockerfile](Dockerfile), [deploy/compose.yaml](deploy/compose.yaml) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). A merge to `main` makes the `image` job in `.github/workflows/ci.yml` publish `ghcr.io/tomvermeer/nuenews` (tags `latest` and `sha-<short commit>`); a systemd timer on the server runs [deploy/update.sh](deploy/update.sh) every 2 hours to pull it. Rolling back means pinning `NUENEWS_IMAGE` in the server's `.env`. The server's own setup notes are in [docs/local/home-server-setup.md](docs/local/home-server-setup.md) (kept out of git).
+- Fallback: Render + Supabase, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Its auto-deploy is off (`render.yaml`), so it only changes through a manual deploy. It is to be deleted, together with `refresh.yml`, after about a week of the home server running well.
 - The database and login stay on Supabase for now. Moving them is a separate step that is not decided yet.
 
 ## Where we left off
@@ -113,8 +122,8 @@ Done: monorepo and tooling, database, RSS/Atom and YouTube providers, weather, s
 
 Next, in the order the owner chose:
 
-1. **Get it deployable, at no cost:** follow [docs/DEPLOYMENT-PLAN.md](docs/DEPLOYMENT-PLAN.md). Step 1 (PostgreSQL) is done locally: PGlite in dev and tests, `DATABASE_URL` for a real server, real data imported; only the hosted database is left. Hosting is decided: Render free web service (API, scheduler and web build as one service) plus Supabase (Postgres and Auth). Steps 1 to 3 are built and tested: Postgres, Supabase Auth login (invite-only), and the deployable unit (API serves the web build, `/internal/tick` for the GitHub Actions cron, `render.yaml`, encrypted weekly backup workflow). Step 4 is done: the app runs on Render + Supabase. The move to the home server is done too: it runs there and login works. Merging a pull request to `main` builds and publishes the image (GitHub Actions to ghcr.io), and the server pulls it with a timer; the server needs only `deploy/compose.yaml`, `deploy/update.sh` and a `.env`, not the source code. Render is kept as a fallback with auto-deploy off. Not yet verified: the timer picking up a new image on its own (run `sudo systemctl start nuenews-update.service` after a merge and read `journalctl -u nuenews-update`). Left to do: delete the Render service and `refresh.yml` after about a week, then the database and login decision: the saved outline is in [docs/HOMESERVER-NEXT-STEPS.md](docs/HOMESERVER-NEXT-STEPS.md). Open issue 4 (a web interface for Caddy and Docker) is not started.
-2. **RoyalRoad** provider and widget (deferred until after deployment), URL-list mode first. It uses the per-fiction feed at `/fiction/syndication/{id}` (not yet checked against the live site) and needs an "unread chapters" notion. A "follows" mode would need a logged-in session and is undecided; see the open questions in [docs/DESIGN.md](docs/DESIGN.md).
+1. **Finish the home-server move:** not yet verified is the timer picking up a new image on its own (after a merge, run `sudo systemctl start nuenews-update.service` and read `journalctl -u nuenews-update`). Delete the Render service and `refresh.yml` once the home server has run well for about a week. Then decide whether to move the database and login off Supabase; undecided, the leading option was to keep Supabase Auth and move the database only after off-site backups exist. Open issue 4 (a web interface for Caddy and Docker) is not started.
+2. **RoyalRoad** provider and widget (deferred until after deployment), URL-list mode first. It uses the per-fiction feed at `/fiction/syndication/{id}` (not yet checked against the live site) and needs an "unread chapters" notion. A "follows" mode would need a logged-in session and is undecided; the open question is how to read a user's follow list without storing their RoyalRoad password.
 3. **Playwright end-to-end tests** for drag, resize, save and add-widget, wired into CI (CI currently runs lint, format check, typecheck, tests and build, plus the Docker image job).
 4. Reddit preset (needs OAuth), sharing between users.
 

@@ -2,7 +2,7 @@
 
 A personal dashboard that pulls feeds from other sites (RSS/Atom, Reddit, YouTube, RoyalRoad, weather) into a customizable grid of widgets. The first version is for a single user, but the design keeps the door open for multiple users and shareable dashboards.
 
-Status: usable. You can create dashboards, add feed, YouTube and weather widgets, arrange them by dragging and resizing, and read items that always link out to their source. RoyalRoad is not built yet. The full plan lives in [docs/DESIGN.md](docs/DESIGN.md).
+Status: usable. You can create dashboards, add feed, YouTube and weather widgets, arrange them by dragging and resizing, and read items that always link out to their source. RoyalRoad is not built yet. The architecture is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## How to run
 
@@ -103,7 +103,9 @@ apps/
 packages/
   shared/         Zod schemas and types used by both apps (@nuenews/shared)
 docs/
-  DESIGN.md       Full plan, data model, API routes, provider notes, testing strategy
+  ARCHITECTURE.md    Architecture, deployment, configuration
+  typescript-style.md  TypeScript coding conventions
+  frontend-style.md    UI conventions
 ```
 
 It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Packages reference each other with `workspace:*`.
@@ -160,7 +162,7 @@ Current tests: 5 in `shared`, 280 in `api`, 119 in `web`.
 
 ## What's next
 
-See the phases in [docs/DESIGN.md](docs/DESIGN.md#8-phases). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on every push and pull request. Immediately next: RoyalRoad (URL list first), Playwright end-to-end tests for dragging and resizing, then hosting and real authentication.
+What is not built yet is listed under "Not built yet" in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). CI (GitHub Actions) runs lint, format check, typecheck, tests and build on pushes to `main` and on pull requests; on `main` it also publishes the Docker image.
 
 ## Open questions
 

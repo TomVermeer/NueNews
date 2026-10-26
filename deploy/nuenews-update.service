@@ -1,4 +1,4 @@
-# Install on the server as /etc/systemd/system/nuenews-update.service (see docs/DEPLOYMENT-HOMESERVER.md).
+# Install on the server as /etc/systemd/system/nuenews-update.service (see docs/ARCHITECTURE.md).
 # Runs update.sh once. The timer starts it; systemd never runs two copies at once.
 [Unit]
 Description=Update NueNews to the newest image
