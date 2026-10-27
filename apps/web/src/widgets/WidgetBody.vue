@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useQueryClient } from '@tanstack/vue-query'
+import { TriangleAlert } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { ApiRequestError } from '../api/client'
 import { keys, useItemStateMutation, useWidgetDataQuery } from '../api/queries'
@@ -53,6 +54,7 @@ function markRead(item: FeedItem) {
   </div>
 
   <div v-else-if="query.isError.value && !query.data.value" class="py-4 text-center" role="alert">
+    <TriangleAlert class="mx-auto mb-2 size-6 text-ink-muted" aria-hidden="true" />
     <p class="text-sm text-ink-muted">{{ errorMessage }}</p>
     <button type="button" class="btn mt-3" @click="query.refetch()">Try again</button>
   </div>

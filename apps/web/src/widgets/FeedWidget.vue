@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TriangleAlert } from 'lucide-vue-next'
+import { Inbox, TriangleAlert } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { feedConfigSchema } from '@nuenews/shared'
 import type { FeedData, FeedItem } from '../api/types'
@@ -27,6 +27,14 @@ const display = computed(
 
 const failing = computed(() => props.data.sources.filter((source) => source.error))
 
+// A feed that never has images keeps the plain layout instead of a column of empty placeholders.
+const showThumbnails = computed(
+  () =>
+    display.value.variant === 'cards' &&
+    display.value.showImages &&
+    props.data.items.some((item) => item.imageUrl),
+)
+
 function meta(item: FeedItem): string {
   return [item.sourceName, timeAgo(item.publishedAt, props.now)].filter(Boolean).join(' · ')
 }
@@ -34,9 +42,10 @@ function meta(item: FeedItem): string {
 
 <template>
   <div class="flex flex-col gap-1">
-    <p v-if="data.items.length === 0" class="py-6 text-center text-sm text-ink-muted">
-      No items yet. New items show up after the next fetch.
-    </p>
+    <div v-if="data.items.length === 0" class="py-6 text-center">
+      <Inbox class="mx-auto mb-2 size-6 text-ink-muted" aria-hidden="true" />
+      <p class="text-sm text-ink-muted">No items yet. New items show up after the next fetch.</p>
+    </div>
 
     <ul v-else class="divide-y divide-line">
       <li v-for="item in data.items" :key="item.id" class="flex gap-3 py-3 first:pt-0 last:pb-0">
@@ -48,7 +57,7 @@ function meta(item: FeedItem): string {
         />
 
         <a
-          v-if="display.variant === 'cards' && display.showImages && item.imageUrl"
+          v-if="showThumbnails"
           :href="item.url"
           target="_blank"
           rel="noopener noreferrer"
@@ -58,12 +67,14 @@ function meta(item: FeedItem): string {
           @click="emit('open', item)"
         >
           <img
+            v-if="item.imageUrl"
             :src="item.imageUrl"
             alt=""
             loading="lazy"
             referrerpolicy="no-referrer"
             class="size-14 rounded-lg bg-line object-cover"
           />
+          <div v-else class="size-14 rounded-lg bg-line" data-testid="thumbnail-placeholder" />
         </a>
 
         <div class="min-w-0 flex-1">
@@ -71,7 +82,7 @@ function meta(item: FeedItem): string {
             :href="item.url"
             target="_blank"
             rel="noopener noreferrer"
-            class="line-clamp-2 text-sm font-medium leading-snug hover:text-accent"
+            class="line-clamp-2 text-sm/5 font-medium hover:text-accent"
             :class="item.read ? 'text-ink-muted' : 'text-ink'"
             @click="emit('open', item)"
             >{{ item.title }}</a
@@ -91,7 +102,7 @@ function meta(item: FeedItem): string {
     <p
       v-for="source in failing"
       :key="source.id"
-      class="mt-2 flex items-start gap-1.5 text-xs text-amber-400"
+      class="mt-2 flex items-start gap-1.5 text-xs text-warning"
       role="status"
     >
       <TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

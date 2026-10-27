@@ -105,6 +105,9 @@ describe('viewing a dashboard', () => {
     serve({ widgets: [] })
     const { wrapper } = await open()
     expect(wrapper.text()).toContain('This dashboard is empty')
+    expect(wrapper.find('[data-testid="empty-dashboard"] svg[aria-hidden="true"]').exists()).toBe(
+      true,
+    )
 
     await getButton(wrapper, 'Add a widget').trigger('click')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
@@ -117,6 +120,7 @@ describe('viewing a dashboard', () => {
     })
     const { wrapper } = await open()
     expect(wrapper.get('[role="alert"]').text()).toContain('Could not load your dashboards')
+    expect(wrapper.find('[role="alert"] svg[aria-hidden="true"]').exists()).toBe(true)
 
     serve()
     await getButton(wrapper, 'Try again').trigger('click')

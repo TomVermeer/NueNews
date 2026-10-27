@@ -5,6 +5,7 @@ import { feedConfigSchema, type FeedConfig } from '@nuenews/shared'
 import { useAutoTitle } from '../../composables/useAutoTitle'
 import { suggestTitle } from '../../lib/titles'
 import ResolveInput from './ResolveInput.vue'
+import ErrorMessage from '../ErrorMessage.vue'
 
 const props = defineProps<{
   initial?: { title: string; config: Partial<FeedConfig> }
@@ -157,7 +158,7 @@ defineExpose({ submit })
             <option value="list">Plain list</option>
           </select>
         </div>
-        <div class="space-y-2 pt-5 text-sm">
+        <div class="space-y-2 pt-6 text-sm">
           <label class="flex items-center gap-2"
             ><input v-model="form.showImages" type="checkbox" /> Show images</label
           >
@@ -168,7 +169,7 @@ defineExpose({ submit })
       </div>
     </details>
 
-    <p v-if="attempted && problem" class="text-xs text-amber-400" role="alert">{{ problem }}</p>
+    <ErrorMessage v-if="attempted && problem" class="text-xs">{{ problem }}</ErrorMessage>
     <button type="submit" class="sr-only">Save</button>
   </form>
 </template>

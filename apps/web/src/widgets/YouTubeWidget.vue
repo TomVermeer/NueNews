@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TriangleAlert } from 'lucide-vue-next'
+import { Inbox, TriangleAlert } from 'lucide-vue-next'
 import { computed } from 'vue'
 import type { FeedData, FeedItem } from '../api/types'
 import { timeAgo } from '../lib/time'
@@ -45,9 +45,10 @@ const failing = computed(() => props.data.sources.filter((source) => source.erro
 
 <template>
   <div>
-    <p v-if="data.items.length === 0" class="py-6 text-center text-sm text-ink-muted">
-      No videos yet. New uploads show up after the next fetch.
-    </p>
+    <div v-if="data.items.length === 0" class="py-6 text-center">
+      <Inbox class="mx-auto mb-2 size-6 text-ink-muted" aria-hidden="true" />
+      <p class="text-sm text-ink-muted">No videos yet. New uploads show up after the next fetch.</p>
+    </div>
 
     <section v-for="channel in channels" v-else :key="channel.id" class="mb-6 last:mb-0">
       <header class="-mx-4 flex items-center gap-3 border-b border-line px-4 pt-1 pb-2">
@@ -66,7 +67,7 @@ const failing = computed(() => props.data.sources.filter((source) => source.erro
           />
           <span
             v-else
-            class="grid size-8 shrink-0 place-items-center rounded-full bg-accent/15 text-xs/4 font-medium text-accent"
+            class="grid size-8 shrink-0 place-items-center rounded-full bg-accent-container text-xs/4 font-medium text-accent"
             aria-hidden="true"
           >
             {{ channel.name.charAt(0).toUpperCase() }}
@@ -101,7 +102,7 @@ const failing = computed(() => props.data.sources.filter((source) => source.erro
               />
             </div>
             <p
-              class="mt-1.5 line-clamp-2 text-sm font-medium leading-snug group-hover:text-accent"
+              class="mt-1.5 line-clamp-2 text-sm/5 font-medium group-hover:text-accent"
               :class="item.read ? 'text-ink-muted' : 'text-ink'"
             >
               {{ item.title }}
@@ -117,7 +118,7 @@ const failing = computed(() => props.data.sources.filter((source) => source.erro
     <p
       v-for="source in failing"
       :key="source.id"
-      class="mt-3 flex items-start gap-1.5 text-xs text-amber-400"
+      class="mt-3 flex items-start gap-1.5 text-xs text-warning"
       role="status"
     >
       <TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

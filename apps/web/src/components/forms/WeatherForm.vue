@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, reactive, ref, toRef, watch } from 'vue'
 import type { GeocodeResult, WeatherConfig } from '@nuenews/shared'
 import { api, unwrap } from '../../api/client'
 import { useAutoTitle } from '../../composables/useAutoTitle'
+import ErrorMessage from '../ErrorMessage.vue'
 
 const props = defineProps<{
   initial?: { title: string; config: Partial<WeatherConfig> }
@@ -125,9 +126,9 @@ defineExpose({ submit })
           </button>
         </li>
       </ul>
-      <p v-else-if="searchError" class="mt-1 text-xs text-amber-400" role="status">
+      <ErrorMessage v-else-if="searchError" class="mt-1 text-xs" role="status">
         {{ searchError }}
-      </p>
+      </ErrorMessage>
     </div>
 
     <fieldset>
@@ -142,9 +143,9 @@ defineExpose({ submit })
       </div>
     </fieldset>
 
-    <p v-if="attempted && !form.location" class="text-xs text-amber-400" role="alert">
+    <ErrorMessage v-if="attempted && !form.location" class="text-xs">
       Choose a location
-    </p>
+    </ErrorMessage>
     <button type="submit" class="sr-only">Save</button>
   </form>
 </template>

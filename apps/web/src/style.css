@@ -8,6 +8,15 @@
   --color-ink: #e6e8ee;
   --color-ink-muted: #8b92a5;
   --color-accent: #7c8cff;
+  /* Material primary-container: the accent as a soft fill (avatar fallbacks, drop targets). */
+  --color-accent-container: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  /* The accent at half strength, for the dashed edit-mode border of a card. */
+  --color-accent-muted: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  /* Material surface-container-low: a recessed area inside a card, darker on any widget color. */
+  --color-card-low: color-mix(in srgb, var(--color-canvas) 60%, transparent);
+  /* Problems and confirmations. Both keep well over 4.5:1 on every card and widget color. */
+  --color-warning: #fbbf24;
+  --color-success: #34d399;
 }
 
 :root {
@@ -94,7 +103,7 @@ body {
 
 /* grid-layout-plus: placeholder shown while dragging, and the resize handle. */
 .vgl-item--placeholder {
-  @apply rounded-xl bg-accent/15;
+  @apply rounded-xl bg-accent-container;
 }
 .vgl-item__resizer {
   opacity: 0.6;

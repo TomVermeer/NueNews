@@ -33,18 +33,18 @@ function cancel() {
     v-if="renaming"
     ref="input"
     v-model="draft"
-    class="field min-w-0 flex-1 py-0.5 text-xs"
+    class="field min-w-0 flex-1 py-1"
     maxlength="80"
     aria-label="Widget title"
     @keydown.enter.prevent="commit"
     @keydown.esc.prevent="cancel"
     @blur="commit"
   />
-  <h2 v-else class="min-w-0 flex-1 text-xs font-medium text-ink-muted">
+  <h2 v-else class="min-w-0 flex-1 text-sm/5 font-medium text-ink-muted">
     <button
       v-if="editable"
       type="button"
-      class="group -mx-1.5 flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+      class="group -mx-2 flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1 transition-colors hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
       aria-label="Rename widget"
       @click="start"
     >

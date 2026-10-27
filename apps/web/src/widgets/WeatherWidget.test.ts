@@ -36,5 +36,6 @@ describe('WeatherWidget', () => {
     expect(fresh.text()).not.toContain('out of date')
     const stale = mount(WeatherWidget, { props: { data: weatherData({ stale: true }) } })
     expect(stale.get('[role="status"]').text()).toContain('out of date')
+    expect(stale.find('[role="status"] svg[aria-hidden="true"]').exists()).toBe(true)
   })
 })

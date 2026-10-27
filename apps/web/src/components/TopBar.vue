@@ -81,7 +81,7 @@ function confirmDelete() {
 
 <template>
   <header class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-    <span class="flex items-center gap-2 text-[15px] font-medium">
+    <span class="flex items-center gap-2 text-base/6 font-medium">
       <LayoutDashboard class="size-5 text-accent" aria-hidden="true" />
       NueNews
     </span>
@@ -112,7 +112,7 @@ function confirmDelete() {
           :class="
             dashboard.id === activeId
               ? 'bg-line text-ink'
-              : 'text-ink-muted hover:bg-line/60 hover:text-ink'
+              : 'text-ink-muted hover:bg-card-high hover:text-ink'
           "
           :aria-current="dashboard.id === activeId ? 'page' : undefined"
           >{{ dashboard.name }}</RouterLink

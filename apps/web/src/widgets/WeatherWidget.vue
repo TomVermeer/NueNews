@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { WeatherData } from '../api/types'
 import WeatherIcon from './WeatherIcon.vue'
+import ErrorMessage from '../components/ErrorMessage.vue'
 
 defineProps<{ data: WeatherData }>()
 
@@ -17,16 +18,14 @@ const weekday = (date: string) =>
         class="size-12 shrink-0 text-accent"
       />
       <div>
-        <p class="text-3xl font-medium leading-none" data-testid="temperature">
-          {{ data.current.temperature }}°
-        </p>
+        <p class="text-[22px]/7" data-testid="temperature">{{ data.current.temperature }}°</p>
         <p class="mt-1 text-sm text-ink-muted">{{ data.current.label }}</p>
       </div>
       <p class="ml-auto self-start text-right text-xs text-ink-muted">{{ data.location.name }}</p>
     </div>
 
     <ul class="mt-4 grid grid-cols-5 gap-1 text-center">
-      <li v-for="day in data.daily" :key="day.date" class="rounded-lg bg-canvas/60 px-1 py-2">
+      <li v-for="day in data.daily" :key="day.date" class="rounded-lg bg-card-low px-1 py-2">
         <p class="text-xs text-ink-muted">{{ weekday(day.date) }}</p>
         <WeatherIcon :icon="day.icon" class="mx-auto my-1 size-5 text-ink-muted" />
         <p class="text-xs">
@@ -36,10 +35,10 @@ const weekday = (date: string) =>
       </li>
     </ul>
 
-    <p v-if="data.stale" class="mt-3 text-xs text-amber-400" role="status">
+    <ErrorMessage v-if="data.stale" class="mt-3 text-xs" role="status">
       The weather service is unavailable, so this may be out of date.
-    </p>
-    <p class="mt-3 text-[11px] text-ink-muted">
+    </ErrorMessage>
+    <p class="mt-3 text-xs text-ink-muted">
       <a
         href="https://www.met.no/en"
         target="_blank"

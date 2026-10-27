@@ -71,7 +71,7 @@ async function lookUp() {
     </div>
     <p
       v-if="state === 'ok'"
-      class="mt-1 flex items-center gap-1 text-xs text-emerald-400"
+      class="mt-1 flex items-center gap-1 text-xs text-success"
       role="status"
     >
       <Check class="size-3.5" aria-hidden="true" />
@@ -79,7 +79,7 @@ async function lookUp() {
     </p>
     <p
       v-else-if="state === 'error'"
-      class="mt-1 flex items-start gap-1 text-xs text-amber-400"
+      class="mt-1 flex items-start gap-1 text-xs text-warning"
       role="alert"
     >
       <TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

@@ -74,6 +74,7 @@ describe('WidgetBody', () => {
     await flushPromises()
 
     expect(wrapper.get('[role="alert"]').text()).toContain('The weather service is down')
+    expect(wrapper.find('[role="alert"] svg[aria-hidden="true"]').exists()).toBe(true)
 
     healthy = true
     await wrapper.get('button').trigger('click')

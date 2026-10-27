@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { LayoutDashboard, LayoutGrid, TriangleAlert } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -124,12 +125,14 @@ const firstName = ref('Home')
     class="mx-auto max-w-sm py-20 text-center"
     role="alert"
   >
+    <TriangleAlert class="mx-auto mb-4 size-6 text-ink-muted" aria-hidden="true" />
     <p class="text-sm text-ink-muted">Could not load your dashboards. Is the server running?</p>
     <button type="button" class="btn mt-4" @click="dashboardsQuery.refetch()">Try again</button>
   </div>
 
   <div v-else-if="dashboards.length === 0" class="mx-auto max-w-sm py-24 text-center">
-    <h1 class="text-lg font-medium">Start your first dashboard</h1>
+    <LayoutDashboard class="mx-auto mb-4 size-6 text-ink-muted" aria-hidden="true" />
+    <h1 class="text-[22px]/7">Start your first dashboard</h1>
     <p class="mt-2 text-sm text-ink-muted">
       A dashboard holds the widgets you arrange: feeds, videos and weather.
     </p>
@@ -160,19 +163,18 @@ const firstName = ref('Home')
       @delete-dashboard="deleteDashboard"
     />
 
-    <p
-      v-if="dashboardQuery.isError.value"
-      class="py-10 text-center text-sm text-ink-muted"
-      role="alert"
-    >
-      Could not load this dashboard.
-    </p>
+    <div v-if="dashboardQuery.isError.value" class="py-10 text-center" role="alert">
+      <TriangleAlert class="mx-auto mb-4 size-6 text-ink-muted" aria-hidden="true" />
+      <p class="text-sm text-ink-muted">Could not load this dashboard.</p>
+    </div>
 
     <div
       v-else-if="dashboardQuery.isSuccess.value && widgets.length === 0 && !editing"
       class="mx-auto max-w-sm py-24 text-center"
+      data-testid="empty-dashboard"
     >
-      <h1 class="text-lg font-medium">This dashboard is empty</h1>
+      <LayoutGrid class="mx-auto mb-4 size-6 text-ink-muted" aria-hidden="true" />
+      <h1 class="text-[22px]/7">This dashboard is empty</h1>
       <p class="mt-2 text-sm text-ink-muted">Add a feed, a YouTube channel or the weather.</p>
       <button type="button" class="btn btn-primary mt-6" @click="editor.openAddPanel()">
         Add a widget

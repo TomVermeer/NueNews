@@ -10,8 +10,10 @@ const render = (props: Omit<Props, 'now'>) =>
   mount(YouTubeWidget, { props: { now: NOW, ...props } })
 
 describe('YouTubeWidget', () => {
-  it('shows a message when there are no videos', () => {
-    expect(render({ data: feedData([]) }).text()).toContain('No videos yet')
+  it('shows a message with an icon when there are no videos', () => {
+    const wrapper = render({ data: feedData([]) })
+    expect(wrapper.text()).toContain('No videos yet')
+    expect(wrapper.find('svg[aria-hidden="true"]').exists()).toBe(true)
   })
 
   it('shows thumbnail, title, channel and age, linking out to YouTube', () => {

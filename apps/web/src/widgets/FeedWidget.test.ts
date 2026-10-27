@@ -59,6 +59,31 @@ describe('FeedWidget', () => {
       const none = render({ data: feedData([feedItem(1, { imageUrl: null })]) })
       expect(none.find('img').exists()).toBe(false)
     })
+
+    it('keeps rows aligned with a placeholder when other items have an image', () => {
+      const mixed = render({ data: feedData([feedItem(1), feedItem(2, { imageUrl: null })]) })
+      expect(mixed.findAll('img')).toHaveLength(1)
+      expect(mixed.findAll('[data-testid="thumbnail-placeholder"]')).toHaveLength(1)
+
+      const off = render({
+        data: feedData([feedItem(1), feedItem(2, { imageUrl: null })]),
+        config: { showImages: false },
+      })
+      expect(off.find('[data-testid="thumbnail-placeholder"]').exists()).toBe(false)
+    })
+
+    it('leaves out the image column for a feed without any images', () => {
+      const none = render({
+        data: feedData([feedItem(1, { imageUrl: null }), feedItem(2, { imageUrl: null })]),
+      })
+      expect(none.find('[data-testid="thumbnail-placeholder"]').exists()).toBe(false)
+    })
+  })
+
+  it('shows an icon with the empty state', () => {
+    const wrapper = render({ data: feedData([]) })
+    expect(wrapper.text()).toContain('No items yet')
+    expect(wrapper.find('svg[aria-hidden="true"]').exists()).toBe(true)
   })
 
   describe('excerpt modes', () => {

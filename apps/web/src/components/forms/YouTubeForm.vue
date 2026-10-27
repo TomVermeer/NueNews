@@ -5,6 +5,7 @@ import type { YouTubeConfig } from '@nuenews/shared'
 import { useAutoTitle } from '../../composables/useAutoTitle'
 import { suggestTitle } from '../../lib/titles'
 import ResolveInput from './ResolveInput.vue'
+import ErrorMessage from '../ErrorMessage.vue'
 
 const props = defineProps<{
   initial?: { title: string; config: Partial<YouTubeConfig> }
@@ -134,7 +135,7 @@ defineExpose({ submit })
       />
     </div>
 
-    <p v-if="attempted && problem" class="text-xs text-amber-400" role="alert">{{ problem }}</p>
+    <ErrorMessage v-if="attempted && problem" class="text-xs">{{ problem }}</ErrorMessage>
     <button type="submit" class="sr-only">Save</button>
   </form>
 </template>

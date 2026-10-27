@@ -21,6 +21,7 @@ import ColorPicker from './ColorPicker.vue'
 import FeedForm from './forms/FeedForm.vue'
 import WeatherForm from './forms/WeatherForm.vue'
 import YouTubeForm from './forms/YouTubeForm.vue'
+import ErrorMessage from './ErrorMessage.vue'
 
 const props = defineProps<{
   dashboardId: string
@@ -83,7 +84,7 @@ async function save(widget: CreateWidget) {
     role="dialog"
     aria-label="Widget panel"
   >
-    <header class="flex items-center gap-2 border-b border-line px-5 py-4">
+    <header class="flex items-center gap-2 border-b border-line px-6 py-4">
       <button
         v-if="!widget && picked"
         type="button"
@@ -101,17 +102,17 @@ async function save(widget: CreateWidget) {
       </button>
     </header>
 
-    <div class="flex-1 overflow-y-auto px-5 py-5">
+    <div class="flex-1 overflow-y-auto px-6 py-6">
       <ul v-if="!type" class="space-y-2">
         <li v-for="option in ADDABLE_WIDGET_TYPES" :key="option">
           <button
             type="button"
-            class="flex w-full items-center gap-3 rounded-lg border border-line px-3 py-3 text-left transition-colors hover:border-accent/60 hover:bg-line/40"
+            class="flex w-full items-center gap-3 rounded-lg border border-line px-3 py-3 text-left transition-colors hover:bg-card-high"
             @click="picked = option"
           >
             <component
               :is="WIDGET_TYPE_INFO[option].icon"
-              class="size-5 shrink-0 text-accent"
+              class="size-5 shrink-0 text-ink-muted"
               aria-hidden="true"
             />
             <span>
@@ -143,15 +144,15 @@ async function save(widget: CreateWidget) {
           :initial="initialWith(weatherConfigSchema)"
           @submit="(value) => save({ type: 'weather', ...value })"
         />
-        <fieldset class="mt-5">
+        <fieldset class="mt-6">
           <legend class="field-label">Color</legend>
           <ColorPicker v-model="color" class="-mx-2" />
         </fieldset>
-        <p v-if="error" class="mt-4 text-sm text-amber-400" role="alert">{{ error }}</p>
+        <ErrorMessage v-if="error" class="mt-4 text-sm">{{ error }}</ErrorMessage>
       </template>
     </div>
 
-    <footer v-if="type" class="flex justify-end gap-2 border-t border-line px-5 py-4">
+    <footer v-if="type" class="flex justify-end gap-2 border-t border-line px-6 py-4">
       <button type="button" class="btn btn-ghost" @click="emit('close')">Cancel</button>
       <button type="button" class="btn btn-primary" :disabled="saving" @click="form?.submit()">
         {{ saving ? 'Saving…' : widget ? 'Save changes' : 'Add widget' }}
