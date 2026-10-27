@@ -54,23 +54,23 @@ function dismiss() {
   open.value = false
 }
 
-watch(open, (isOpen) => {
-  if (isOpen) {
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    window.addEventListener('resize', dismiss)
-    window.addEventListener('scroll', dismiss, true)
-    return
-  }
+function removeListeners() {
   document.removeEventListener('pointerdown', onPointerDown)
   document.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('resize', dismiss)
   window.removeEventListener('scroll', dismiss, true)
+}
+
+watch(open, (isOpen) => {
+  if (!isOpen) return removeListeners()
+  document.addEventListener('pointerdown', onPointerDown)
+  document.addEventListener('keydown', onKeyDown)
+  window.addEventListener('resize', dismiss)
+  window.addEventListener('scroll', dismiss, true)
 })
 
-onBeforeUnmount(() => {
-  open.value = false
-})
+// The watcher is stopped on unmount before it can see `open` turn false, so clean up here.
+onBeforeUnmount(removeListeners)
 </script>
 
 <template>

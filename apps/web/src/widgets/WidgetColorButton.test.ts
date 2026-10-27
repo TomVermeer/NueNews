@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import WidgetColorButton from './WidgetColorButton.vue'
 
 const mounted: ReturnType<typeof mount>[] = []
@@ -50,5 +50,27 @@ describe('WidgetColorButton', () => {
     document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
     await wrapper.vm.$nextTick()
     expect(panel()).toBeNull()
+  })
+
+  it('removes its document and window listeners when unmounted while open', async () => {
+    const targets = [document, window]
+    const added = targets.map((target) => vi.spyOn(target, 'addEventListener'))
+    const removed = targets.map((target) => vi.spyOn(target, 'removeEventListener'))
+    const wrapper = render()
+    await wrapper.get('button').trigger('click')
+
+    mounted.splice(0).forEach((each) => each.unmount())
+    await Promise.resolve()
+
+    targets.forEach((_, index) => {
+      const removedListeners = removed[index]!.mock.calls.map(([type, listener]) => [
+        type,
+        listener,
+      ])
+      for (const [type, listener] of added[index]!.mock.calls) {
+        expect(removedListeners).toContainEqual([type, listener])
+      }
+    })
+    added.concat(removed).forEach((spy) => spy.mockRestore())
   })
 })
