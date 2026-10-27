@@ -3,6 +3,7 @@ import { Check, LoaderCircle, TriangleAlert } from 'lucide-vue-next'
 import { ref, watch } from 'vue'
 import type { SourceKind } from '@nuenews/shared'
 import { api, unwrap } from '../../api/client'
+import type { ResolvedSource } from '../../api/types'
 
 const props = defineProps<{
   kind: SourceKind
@@ -13,7 +14,7 @@ const props = defineProps<{
 /** The canonical value (feed URL or channel ID). Empty until the address has been looked up. */
 const model = defineModel<string>({ required: true })
 
-const emit = defineEmits<{ resolved: [result: { key: string; title?: string }] }>()
+const emit = defineEmits<{ resolved: [result: ResolvedSource] }>()
 
 const text = ref(model.value)
 const state = ref<'idle' | 'loading' | 'ok' | 'error'>(model.value ? 'ok' : 'idle')
@@ -35,9 +36,7 @@ async function lookUp() {
   state.value = 'loading'
   message.value = ''
   try {
-    const result = await unwrap<{ key: string; title?: string }>(
-      api.sources.resolve.$post({ json: { kind: props.kind, input } }),
-    )
+    const result = await unwrap(api.sources.resolve.$post({ json: { kind: props.kind, input } }))
     model.value = result.key
     text.value = result.key
     title.value = result.title ?? ''

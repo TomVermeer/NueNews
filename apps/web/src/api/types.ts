@@ -9,6 +9,7 @@ export type DashboardSummary = InferResponseType<
 export type DashboardDetail = InferResponseType<(typeof api.dashboards)[':id']['$get'], 200>
 export type WidgetDto = DashboardDetail['widgets'][number]
 export type WidgetData = InferResponseType<(typeof api.widgets)[':id']['data']['$get'], 200>
+export type ResolvedSource = InferResponseType<typeof api.sources.resolve.$post, 200>
 
 type Has<T, K extends string> = T extends Record<K, unknown> ? T : never
 export type FeedData = Has<WidgetData, 'items'>

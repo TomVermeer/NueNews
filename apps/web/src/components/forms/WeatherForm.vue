@@ -11,10 +11,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{ submit: [value: { title: string; config: WeatherConfig }] }>()
 
+const initialUnits: WeatherConfig['units'] = props.initial?.config.units ?? 'metric'
+
 const form = reactive({
   title: props.initial?.title ?? 'Weather',
   location: props.initial?.config.location ?? null,
-  units: props.initial?.config.units ?? ('metric' as 'metric' | 'imperial'),
+  units: initialUnits,
 })
 
 const autoTitle = useAutoTitle(
@@ -43,9 +45,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 async function search(text: string) {
   searching.value = true
   try {
-    const body = await unwrap<{ results: GeocodeResult[] }>(
-      api.geocode.$get({ query: { q: text } }),
-    )
+    const body = await unwrap(api.geocode.$get({ query: { q: text } }))
     if (query.value.trim() !== text) return // a newer search superseded this one
     results.value = body.results
     if (body.results.length === 0) searchError.value = 'No places found'

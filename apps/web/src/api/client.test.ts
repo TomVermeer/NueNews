@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api } from './client'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { api, ApiRequestError, unwrap } from './client'
+import type { DashboardSummary } from './types'
 
 const hoisted = vi.hoisted(() => ({
   client: null as null | { auth: { signOut: ReturnType<typeof vi.fn> } },
@@ -54,5 +55,49 @@ describe('api client', () => {
 
     await api.dashboards.$get()
     expect(signOut).not.toHaveBeenCalled()
+  })
+})
+
+describe('unwrap', () => {
+  const answer = (body: string | null, status: number) =>
+    fetchMock.mockImplementation(async () => new Response(body, { status }))
+
+  it('resolves with the JSON body, typed from the route', async () => {
+    const result = unwrap(api.dashboards.$get())
+    expectTypeOf(result).resolves.toEqualTypeOf<{ dashboards: DashboardSummary[] }>()
+    expect(await result).toEqual({ dashboards: [] })
+  })
+
+  it('resolves with nothing for 204 No Content', async () => {
+    answer(null, 204)
+    expect(await unwrap(api.dashboards[':id'].$delete({ param: { id: 'd1' } }))).toBeUndefined()
+  })
+
+  it("throws the API's error code and message", async () => {
+    answer('{"error":{"code":"not_found","message":"Dashboard not found"}}', 404)
+    await expect(unwrap(api.dashboards[':id'].$get({ param: { id: 'x' } }))).rejects.toEqual(
+      new ApiRequestError(404, 'not_found', 'Dashboard not found'),
+    )
+  })
+
+  it('falls back to a generic error when the body is not the standard shape', async () => {
+    answer('<html>Bad gateway</html>', 502)
+    await expect(unwrap(api.dashboards.$get())).rejects.toMatchObject({
+      status: 502,
+      code: 'error',
+      message: 'The server answered with 502',
+    })
+    answer('{"error":"oops"}', 500)
+    await expect(unwrap(api.dashboards.$get())).rejects.toMatchObject({ code: 'error' })
+  })
+
+  it('reports a network failure', async () => {
+    fetchMock.mockImplementation(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    await expect(unwrap(api.dashboards.$get())).rejects.toMatchObject({
+      status: 0,
+      code: 'network',
+    })
   })
 })

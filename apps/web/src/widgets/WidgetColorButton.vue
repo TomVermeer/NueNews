@@ -41,8 +41,10 @@ function close() {
 }
 
 function onPointerDown(event: PointerEvent) {
-  const target = event.target as Node
-  if (panel.value?.contains(target) || button.value?.contains(target)) return
+  const target = event.target
+  const inside =
+    target instanceof Node && (panel.value?.contains(target) || button.value?.contains(target))
+  if (inside) return
   open.value = false
 }
 

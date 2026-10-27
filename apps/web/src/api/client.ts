@@ -1,4 +1,5 @@
-import { hc } from 'hono/client'
+import { type ClientResponse, hc } from 'hono/client'
+import type { SuccessStatusCode } from 'hono/utils/http-status'
 import type { AppType } from '@nuenews/api'
 import { accessToken, authClient } from '../auth/client'
 
@@ -28,33 +29,50 @@ export class ApiRequestError extends Error {
   }
 }
 
-interface ResponseLike {
-  ok: boolean
-  status: number
-  json(): Promise<unknown>
+/** The body type of the 2xx answers a typed client call can give. */
+type SuccessBody<R> =
+  R extends ClientResponse<infer Body, infer Status>
+    ? Status extends SuccessStatusCode
+      ? Body
+      : never
+    : never
+
+/** The `code` and `message` of a body in the API's error shape, if it has that shape. */
+function errorFields(body: unknown): { code?: string; message?: string } {
+  if (typeof body !== 'object' || body === null || !('error' in body)) return {}
+  const { error } = body
+  if (typeof error !== 'object' || error === null) return {}
+  return {
+    code: 'code' in error && typeof error.code === 'string' ? error.code : undefined,
+    message: 'message' in error && typeof error.message === 'string' ? error.message : undefined,
+  }
 }
 
 /** Resolves with the parsed JSON body, or throws an ApiRequestError for non-2xx answers. */
-export async function unwrap<T>(request: Promise<ResponseLike>): Promise<T> {
-  let res: ResponseLike
+export async function unwrap<R extends ClientResponse<unknown>>(
+  request: Promise<R>,
+): Promise<SuccessBody<R>> {
+  let response: R
   try {
-    res = await request
+    response = await request
   } catch {
     throw new ApiRequestError(0, 'network', 'Could not reach the server')
   }
 
-  if (res.ok) {
-    return (res.status === 204 ? undefined : await res.json()) as T
+  if (response.ok) {
+    // `ok` means a 2xx status, but TypeScript cannot narrow the response union on it.
+    return (response.status === 204 ? undefined : await response.json()) as SuccessBody<R>
   }
 
-  let code = 'error'
-  let message = `The server answered with ${res.status}`
+  let fields: { code?: string; message?: string } = {}
   try {
-    const body = (await res.json()) as { error?: { code?: string; message?: string } }
-    code = body.error?.code ?? code
-    message = body.error?.message ?? message
+    fields = errorFields(await response.json())
   } catch {
-    // keep the generic message
+    // Not JSON: keep the generic message.
   }
-  throw new ApiRequestError(res.status, code, message)
+  throw new ApiRequestError(
+    response.status,
+    fields.code ?? 'error',
+    fields.message ?? `The server answered with ${response.status}`,
+  )
 }

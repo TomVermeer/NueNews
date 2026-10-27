@@ -1,29 +1,29 @@
 <script setup lang="ts">
 import { TriangleAlert } from 'lucide-vue-next'
 import { computed } from 'vue'
-import type { FeedConfig, YouTubeConfig } from '@nuenews/shared'
+import { feedConfigSchema } from '@nuenews/shared'
 import type { FeedData, FeedItem } from '../api/types'
 import { timeAgo } from '../lib/time'
 
-type Display = Partial<Pick<FeedConfig, 'excerpt' | 'showImages' | 'unreadDots' | 'variant'>>
+const displaySchema = feedConfigSchema.pick({
+  excerpt: true,
+  showImages: true,
+  unreadDots: true,
+  variant: true,
+})
 
 const props = defineProps<{
   data: FeedData
-  config?: Display | Partial<YouTubeConfig>
+  config?: Record<string, unknown>
   now?: Date
 }>()
 
 const emit = defineEmits<{ open: [item: FeedItem] }>()
 
-const display = computed(() => {
-  const c = (props.config ?? {}) as Display
-  return {
-    excerpt: c.excerpt ?? 'compact',
-    showImages: c.showImages ?? true,
-    unreadDots: c.unreadDots ?? false,
-    variant: c.variant ?? 'cards',
-  }
-})
+// Missing options get the schema's defaults; a config that does not parse gets all of them.
+const display = computed(
+  () => displaySchema.safeParse(props.config ?? {}).data ?? displaySchema.parse({}),
+)
 
 const failing = computed(() => props.data.sources.filter((source) => source.error))
 

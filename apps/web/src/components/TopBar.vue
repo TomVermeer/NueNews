@@ -36,7 +36,7 @@ const nameInput = ref<HTMLInputElement | null>(null)
 
 // A function ref, because one of the inputs lives inside a v-for (where a plain ref becomes an array).
 function setNameInput(el: unknown) {
-  nameInput.value = el as HTMLInputElement | null
+  nameInput.value = el instanceof HTMLInputElement ? el : null
 }
 
 async function focusName() {
@@ -72,10 +72,10 @@ function commitName() {
 }
 
 function confirmDelete() {
-  const name = props.dashboards.find((d) => d.id === props.activeId)?.name ?? 'this dashboard'
-  if (window.confirm(`Delete "${name}" and all of its widgets?`)) {
-    emit('delete-dashboard', props.activeId!)
-  }
+  const id = props.activeId
+  if (!id) return
+  const name = props.dashboards.find((d) => d.id === id)?.name ?? 'this dashboard'
+  if (window.confirm(`Delete "${name}" and all of its widgets?`)) emit('delete-dashboard', id)
 }
 </script>
 

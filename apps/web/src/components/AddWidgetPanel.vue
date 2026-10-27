@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { ArrowLeft, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import type {
-  CreateWidget,
-  FeedConfig,
-  WeatherConfig,
-  WidgetColor,
-  YouTubeConfig,
+import {
+  feedConfigSchema,
+  weatherConfigSchema,
+  youtubeConfigSchema,
+  type CreateWidget,
+  type WidgetColor,
 } from '@nuenews/shared'
 import { ApiRequestError } from '../api/client'
 import { useWidgetMutations } from '../api/queries'
 import type { WidgetDto } from '../api/types'
-import { ADDABLE_WIDGET_TYPES, WIDGET_TYPE_INFO, type AddableWidgetType } from '../lib/widgetTypes'
+import {
+  ADDABLE_WIDGET_TYPES,
+  isAddableWidgetType,
+  WIDGET_TYPE_INFO,
+  type AddableWidgetType,
+} from '../lib/widgetTypes'
 import ColorPicker from './ColorPicker.vue'
 import FeedForm from './forms/FeedForm.vue'
 import WeatherForm from './forms/WeatherForm.vue'
@@ -31,34 +36,38 @@ const error = ref('')
 const color = ref<WidgetColor | null>(props.widget?.color ?? null)
 const form = ref<{ submit: () => void } | null>(null)
 
-const type = computed<AddableWidgetType | null>(
-  () => (props.widget?.type as AddableWidgetType | undefined) ?? picked.value,
+const type = computed<AddableWidgetType | null>(() =>
+  props.widget && isAddableWidgetType(props.widget.type) ? props.widget.type : picked.value,
 )
 const saving = computed(() => mutations.create.isPending.value || mutations.update.isPending.value)
-const initial = computed(() =>
-  props.widget ? { title: props.widget.title, config: props.widget.config as never } : undefined,
-)
 
-async function save(value: { title: string; config: FeedConfig | YouTubeConfig | WeatherConfig }) {
+interface ConfigSchema<T> {
+  safeParse(value: unknown): { success: boolean; data?: T }
+}
+
+/** The widget being edited, with its stored config read through the form's own schema. */
+function initialWith<T>(
+  schema: ConfigSchema<T>,
+): { title: string; config: Partial<T> } | undefined {
+  if (!props.widget) return undefined
+  return { title: props.widget.title, config: schema.safeParse(props.widget.config).data ?? {} }
+}
+
+async function save(widget: CreateWidget) {
   error.value = ''
   try {
     if (props.widget) {
       await mutations.update.mutateAsync({
         dashboardId: props.dashboardId,
         id: props.widget.id,
-        title: value.title,
+        title: widget.title,
         color: color.value,
-        config: value.config as unknown as Record<string, unknown>,
+        config: widget.config,
       })
     } else {
       await mutations.create.mutateAsync({
         dashboardId: props.dashboardId,
-        widget: {
-          type: type.value,
-          title: value.title,
-          color: color.value ?? undefined,
-          config: value.config,
-        } as CreateWidget,
+        widget: { ...widget, color: color.value ?? undefined },
       })
     }
     emit('close')
@@ -116,9 +125,24 @@ async function save(value: { title: string; config: FeedConfig | YouTubeConfig |
       </ul>
 
       <template v-else>
-        <FeedForm v-if="type === 'feed'" ref="form" :initial="initial" @submit="save" />
-        <YouTubeForm v-else-if="type === 'youtube'" ref="form" :initial="initial" @submit="save" />
-        <WeatherForm v-else ref="form" :initial="initial" @submit="save" />
+        <FeedForm
+          v-if="type === 'feed'"
+          ref="form"
+          :initial="initialWith(feedConfigSchema)"
+          @submit="(value) => save({ type: 'feed', ...value })"
+        />
+        <YouTubeForm
+          v-else-if="type === 'youtube'"
+          ref="form"
+          :initial="initialWith(youtubeConfigSchema)"
+          @submit="(value) => save({ type: 'youtube', ...value })"
+        />
+        <WeatherForm
+          v-else
+          ref="form"
+          :initial="initialWith(weatherConfigSchema)"
+          @submit="(value) => save({ type: 'weather', ...value })"
+        />
         <fieldset class="mt-5">
           <legend class="field-label">Color</legend>
           <ColorPicker v-model="color" class="-mx-2" />

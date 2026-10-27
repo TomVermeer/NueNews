@@ -48,11 +48,11 @@ const draft = useLayoutDraft(widgets, editing)
 const dashboardMutations = useDashboardMutations()
 const widgetMutations = useWidgetMutations()
 
-const editingWidget = computed(() =>
-  panel.value.mode === 'edit'
-    ? widgets.value.find((w) => w.id === (panel.value as { widgetId: string }).widgetId)
-    : undefined,
-)
+const editingWidget = computed(() => {
+  const current = panel.value
+  if (current.mode !== 'edit') return undefined
+  return widgets.value.find((w) => w.id === current.widgetId)
+})
 
 const updatedAt = ref<Date | null>(null)
 watch(
