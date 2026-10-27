@@ -137,6 +137,21 @@ describe('FeedForm', () => {
     await wrapper.get('[aria-label="Remove feed 2"]').trigger('click')
     expect(wrapper.findAll('input[aria-label^="Feed address"]')).toHaveLength(1)
   })
+
+  it('keeps the remaining addresses in place when you remove the first feed', async () => {
+    const wrapper = mount(FeedForm, {
+      props: {
+        initial: {
+          title: 'My feeds',
+          config: { sources: [{ url: 'https://x.example/f' }, { url: 'https://y.example/f' }] },
+        },
+      },
+    })
+    await wrapper.get('[aria-label="Remove feed 1"]').trigger('click')
+    expect(
+      (wrapper.get('input[aria-label="Feed address 1"]').element as HTMLInputElement).value,
+    ).toBe('https://y.example/f')
+  })
 })
 
 describe('YouTubeForm', () => {
@@ -178,6 +193,26 @@ describe('YouTubeForm', () => {
     await wrapper.get('#yt-title').setValue('Dev videos')
     await wrapper.get('input[aria-label="Name for channel 1"]').setValue('Fire')
     expect((wrapper.get('#yt-title').element as HTMLInputElement).value).toBe('Dev videos')
+  })
+
+  it('keeps the remaining channels in place when you remove the first one', async () => {
+    const wrapper = mount(YouTubeForm, {
+      props: {
+        initial: {
+          title: 'Dev videos',
+          config: {
+            channels: [
+              { input: 'UCaaaaaaaaaaaaaaaaaaaaaa' },
+              { input: 'UCbbbbbbbbbbbbbbbbbbbbbb' },
+            ],
+          },
+        },
+      },
+    })
+    await wrapper.get('[aria-label="Remove channel 1"]').trigger('click')
+    expect((wrapper.get('input[aria-label="Channel 1"]').element as HTMLInputElement).value).toBe(
+      'UCbbbbbbbbbbbbbbbbbbbbbb',
+    )
   })
 })
 

@@ -12,9 +12,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{ submit: [value: { title: string; config: YouTubeConfig }] }>()
 
+// Rows are keyed by id, not index: ResolveInput keeps its own text, so removing a row
+// would otherwise leave the old text in the row that moves up.
+let nextRowId = 0
+
 const form = reactive({
   title: props.initial?.title ?? 'YouTube',
   channels: (props.initial?.config.channels ?? [{ input: '' }]).map((c) => ({
+    id: nextRowId++,
     input: c.input,
     label: c.label ?? '',
     name: '',
@@ -75,7 +80,11 @@ defineExpose({ submit })
     <fieldset>
       <legend class="field-label">Channels</legend>
       <ul class="space-y-3">
-        <li v-for="(channel, index) in form.channels" :key="index" class="flex items-start gap-2">
+        <li
+          v-for="(channel, index) in form.channels"
+          :key="channel.id"
+          class="flex items-start gap-2"
+        >
           <div class="min-w-0 flex-1 space-y-2">
             <ResolveInput
               v-model="channel.input"
@@ -107,7 +116,7 @@ defineExpose({ submit })
       <button
         type="button"
         class="btn btn-ghost mt-2 !px-0"
-        @click="form.channels.push({ input: '', label: '', name: '' })"
+        @click="form.channels.push({ id: nextRowId++, input: '', label: '', name: '' })"
       >
         <Plus class="size-4" aria-hidden="true" /> Add another channel
       </button>

@@ -14,9 +14,14 @@ const emit = defineEmits<{ submit: [value: { title: string; config: FeedConfig }
 
 const defaults = feedConfigSchema.parse({ sources: [{ url: 'https://placeholder.invalid' }] })
 
+// Rows are keyed by id, not index: ResolveInput keeps its own text, so removing a row
+// would otherwise leave the old text in the row that moves up.
+let nextRowId = 0
+
 const form = reactive({
   title: props.initial?.title ?? 'News',
   sources: (props.initial?.config.sources ?? [{ url: '' }]).map((s) => ({
+    id: nextRowId++,
     url: s.url,
     label: s.label ?? '',
     name: '',
@@ -85,7 +90,7 @@ defineExpose({ submit })
     <fieldset>
       <legend class="field-label">Feeds</legend>
       <ul class="space-y-3">
-        <li v-for="(source, index) in form.sources" :key="index" class="flex items-start gap-2">
+        <li v-for="(source, index) in form.sources" :key="source.id" class="flex items-start gap-2">
           <div class="min-w-0 flex-1 space-y-2">
             <ResolveInput
               v-model="source.url"
@@ -117,7 +122,7 @@ defineExpose({ submit })
       <button
         type="button"
         class="btn btn-ghost mt-2 !px-0"
-        @click="form.sources.push({ url: '', label: '', name: '' })"
+        @click="form.sources.push({ id: nextRowId++, url: '', label: '', name: '' })"
       >
         <Plus class="size-4" aria-hidden="true" /> Add another feed
       </button>
