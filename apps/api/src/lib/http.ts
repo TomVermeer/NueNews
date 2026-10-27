@@ -1,6 +1,7 @@
 import { Agent, fetch as undiciFetch } from 'undici'
 import type { LookupFunction } from 'node:net'
-import { checkUrl, createGuardedLookup } from './ssrf'
+import { errorMessage } from './errors'
+import { BlockedUrlError, checkUrl, createGuardedLookup } from './ssrf'
 
 export interface HttpHeaders {
   get(name: string): string | null
@@ -72,7 +73,7 @@ async function readBody(res: RawResponse, maxBytes: number, signal: AbortSignal)
   } catch (error) {
     if (error instanceof HttpError) throw error
     if (signal.aborted) throw new HttpError('Request timed out', 'timeout')
-    throw new HttpError(`Network error: ${(error as Error).message}`, 'network')
+    throw new HttpError(`Network error: ${errorMessage(error)}`, 'network')
   }
   return new TextDecoder('utf-8').decode(Buffer.concat(chunks))
 }
@@ -102,10 +103,10 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
           })
         } catch (error) {
           if (signal.aborted) throw new HttpError('Request timed out', 'timeout')
-          if ((error as Error).name === 'BlockedUrlError') throw error
-          const cause = (error as { cause?: Error }).cause
-          if (cause?.name === 'BlockedUrlError') throw cause
-          throw new HttpError(`Network error: ${(error as Error).message}`, 'network')
+          if (error instanceof BlockedUrlError) throw error
+          // undici wraps errors from the guarded lookup in its own TypeError.
+          if (error instanceof Error && error.cause instanceof BlockedUrlError) throw error.cause
+          throw new HttpError(`Network error: ${errorMessage(error)}`, 'network')
         }
 
         const location = res.headers.get('location')
@@ -125,7 +126,11 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
 
 /** The client used in production: undici with a connection-time private-address guard. */
 export function createDefaultHttpClient(userAgent: string): HttpClient {
+  // Node's LookupFunction requires an address in every callback, but the guarded lookup calls back
+  // with only an error when it blocks or fails, which is what Node does itself.
   const dispatcher = new Agent({ connect: { lookup: createGuardedLookup() as LookupFunction } })
+  // undici's Response has everything RawResponse reads. The cast is for the web app's typecheck,
+  // which compiles this file with the DOM lib, whose ReadableStream does not match undici's.
   const fetchImpl: FetchLike = (url, init) =>
     undiciFetch(url, { ...init, dispatcher }) as unknown as Promise<RawResponse>
   return createHttpClient({ userAgent, fetchImpl })

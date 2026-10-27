@@ -1,4 +1,4 @@
-import { inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { itemStateSchema } from '@nuenews/shared'
 import type { AppDeps, Env } from '../context'
@@ -15,9 +15,12 @@ export function itemRoutes({ db, now: clock }: AppDeps) {
       await db.select({ id: items.id }).from(items).where(inArray(items.id, ids))
     ).map((row) => row.id)
     const current = new Map(
-      (await db.select().from(itemState).where(inArray(itemState.itemId, existing)))
-        .filter((row) => row.userId === userId)
-        .map((row) => [row.itemId, row]),
+      (
+        await db
+          .select()
+          .from(itemState)
+          .where(and(eq(itemState.userId, userId), inArray(itemState.itemId, existing)))
+      ).map((row) => [row.itemId, row]),
     )
 
     await db.transaction(async (tx) => {

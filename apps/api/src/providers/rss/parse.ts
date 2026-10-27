@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
 import { normalizedItemSchema, type NormalizedItem } from '@nuenews/shared'
+import { errorMessage } from '../../lib/errors'
 import { decodeEntities, htmlToText, makeExcerpt, truncate } from '../../lib/text'
 
 export class FeedParseError extends Error {
@@ -45,6 +46,7 @@ function toArray(value: unknown): unknown[] {
 }
 
 function asNode(value: unknown): Node | undefined {
+  // Parsed XML only holds strings, numbers, arrays and plain objects, so any object is a Node.
   return typeof value === 'object' && value !== null ? (value as Node) : undefined
 }
 
@@ -164,9 +166,9 @@ function normalizeItem(raw: Node, base: string, now: Date): NormalizedItem | und
 export function parseFeed(xml: string, baseUrl: string, now: Date): ParsedFeed {
   let doc: Node
   try {
-    doc = parser.parse(xml) as Node
+    doc = parser.parse(xml)
   } catch (error) {
-    throw new FeedParseError(`Could not read the feed: ${(error as Error).message}`)
+    throw new FeedParseError(`Could not read the feed: ${errorMessage(error)}`)
   }
 
   const rss = asNode(asNode(doc.rss)?.channel)

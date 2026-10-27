@@ -42,7 +42,7 @@ export async function importSqlite(
   const counts: Record<string, number> = {}
 
   async function copy(name: string, table: PgTable, convert: (row: Row) => Row) {
-    const rows = source.prepare(`SELECT * FROM ${name}`).all() as Row[]
+    const rows = source.prepare<[], Row>(`SELECT * FROM ${name}`).all()
     counts[name] = rows.length
     for (let start = 0; start < rows.length; start += CHUNK) {
       const chunk = rows.slice(start, start + CHUNK).map(convert)

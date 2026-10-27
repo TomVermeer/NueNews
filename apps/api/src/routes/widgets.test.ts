@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemState, sources, widgetSources, widgets } from '../db/schema'
+import { itemState, sources, users, widgetSources, widgets } from '../db/schema'
 import { ProviderError } from '../providers/errors'
 import { createTestApp, item, NOW } from '../test/helpers'
 
@@ -172,6 +172,25 @@ describe('item state', () => {
     expect(await t.db.select().from(itemState)).toEqual([
       expect.objectContaining({ userId: t.userId, itemId: items[0]!.id }),
     ])
+  })
+
+  it("ignores another user's state for the same item", async () => {
+    const { t, id, items } = await setup()
+    await t.db.insert(users).values({ id: 'other', name: 'Other' })
+    await t.db
+      .insert(itemState)
+      .values({ userId: 'other', itemId: items[0]!.id, seenAt: NOW, readAt: NOW })
+
+    await t.call('POST', '/items/state', { ids: [items[0]!.id], action: 'seen' })
+
+    const { body } = await t.call('GET', `/widgets/${id}/data`)
+    expect(body.items.find((i: { id: string }) => i.id === items[0]!.id)).toMatchObject({
+      seen: true,
+      read: false,
+    })
+    expect(await t.db.select().from(itemState)).toContainEqual(
+      expect.objectContaining({ userId: 'other', readAt: NOW }),
+    )
   })
 })
 

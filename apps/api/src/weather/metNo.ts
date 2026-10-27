@@ -60,6 +60,7 @@ export function parseForecast(json: unknown, lon: number, units: Units): Weather
   const parsed = forecastSchema.safeParse(json)
   if (!parsed.success) throw new ProviderError('The weather service returned an unexpected answer')
   const series = parsed.data.properties.timeseries
+  // The schema requires at least one entry.
   const first = series[0]!
 
   const symbol = symbolOf(first)
