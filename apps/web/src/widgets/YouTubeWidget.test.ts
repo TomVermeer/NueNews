@@ -4,8 +4,10 @@ import { feedData, feedItem } from '../test/factories'
 import YouTubeWidget from './YouTubeWidget.vue'
 
 const NOW = new Date('2026-02-01T12:00:00Z')
-const render = (props: Record<string, unknown>) =>
-  mount(YouTubeWidget, { props: { now: NOW, ...props } as never })
+type Props = InstanceType<typeof YouTubeWidget>['$props']
+
+const render = (props: Omit<Props, 'now'>) =>
+  mount(YouTubeWidget, { props: { now: NOW, ...props } })
 
 describe('YouTubeWidget', () => {
   it('shows a message when there are no videos', () => {

@@ -5,6 +5,7 @@ import { fakeApi } from '../test/fakeApi'
 import { feedData, feedItem, weatherData, widget } from '../test/factories'
 import { mountApp } from '../test/mount'
 import DashboardPage from './DashboardPage.vue'
+import { getButton, inputIn, inputOf } from '../test/dom'
 
 vi.mock('../api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/client')>()
@@ -35,10 +36,10 @@ function serve(options: { dashboards?: unknown[]; widgets?: ReturnType<typeof wi
   const widgets = options.widgets ?? [news, forecast]
   fakeApi.on('GET dashboards', { body: { dashboards } })
   fakeApi.on('GET dashboards/:id', (args) => ({
-    body: { ...HOME, id: args.param.id, widgets },
+    body: { ...HOME, id: args.param?.id, widgets },
   }))
   fakeApi.on('GET widgets/:id/data', (args) => ({
-    body: args.param.id === 'w2' ? weatherData() : feedData([feedItem(1, { title: 'Top story' })]),
+    body: args.param?.id === 'w2' ? weatherData() : feedData([feedItem(1, { title: 'Top story' })]),
   }))
 }
 
@@ -47,9 +48,6 @@ async function open(route = '/') {
   await flushPromises()
   return mounted
 }
-
-const button = (wrapper: { findAll: (s: string) => any[] }, text: string) =>
-  wrapper.findAll('button').find((b) => b.text().includes(text))
 
 beforeEach(() => fakeApi.reset())
 afterEach(() => vi.unstubAllGlobals())
@@ -75,7 +73,7 @@ describe('first run', () => {
     await wrapper.get('input[aria-label="Dashboard name"]').setValue('   ')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
-    expect(fakeApi.callsTo('POST dashboards')[0]!.args.json.name).toBe('Home')
+    expect(fakeApi.callsTo('POST dashboards')[0]!.args.json?.name).toBe('Home')
   })
 })
 
@@ -108,7 +106,7 @@ describe('viewing a dashboard', () => {
     const { wrapper } = await open()
     expect(wrapper.text()).toContain('This dashboard is empty')
 
-    await button(wrapper, 'Add a widget')!.trigger('click')
+    await getButton(wrapper, 'Add a widget').trigger('click')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
   })
 
@@ -121,7 +119,7 @@ describe('viewing a dashboard', () => {
     expect(wrapper.get('[role="alert"]').text()).toContain('Could not load your dashboards')
 
     serve()
-    await button(wrapper, 'Try again')!.trigger('click')
+    await getButton(wrapper, 'Try again').trigger('click')
     await flushPromises()
     expect(wrapper.findAll('nav a')).toHaveLength(2)
   })
@@ -136,7 +134,7 @@ describe('viewing a dashboard', () => {
     expect(
       fakeApi
         .callsTo('POST widgets/:id/refresh')
-        .map((c) => c.args.param.id)
+        .map((c) => c.args.param?.id)
         .sort(),
     ).toEqual(['w1', 'w2'])
   })
@@ -148,7 +146,7 @@ describe('viewing a dashboard', () => {
 
     await wrapper.findAll('[aria-label="Refresh widget"]')[0]!.trigger('click')
     await flushPromises()
-    expect(fakeApi.callsTo('POST widgets/:id/refresh').map((c) => c.args.param.id)).toEqual(['w1'])
+    expect(fakeApi.callsTo('POST widgets/:id/refresh').map((c) => c.args.param?.id)).toEqual(['w1'])
   })
 })
 
@@ -158,13 +156,13 @@ describe('edit mode', () => {
     fakeApi.on('PUT dashboards/:id/layout', { body: { ...HOME, widgets: [forecast] } })
     const { wrapper } = await open()
 
-    await button(wrapper, 'Edit layout')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
     expect(wrapper.find('.drag-handle').exists()).toBe(true)
 
     await wrapper.findAll('[aria-label="Remove widget"]')[0]!.trigger('click')
     expect(wrapper.findAll('section h2').map((h) => h.text())).toEqual(['Weather'])
 
-    await button(wrapper, 'Save layout')!.trigger('click')
+    await getButton(wrapper, 'Save layout').trigger('click')
     await flushPromises()
 
     const [call] = fakeApi.callsTo('PUT dashboards/:id/layout')
@@ -178,11 +176,11 @@ describe('edit mode', () => {
   it('cancel brings back removed widgets and sends nothing', async () => {
     serve()
     const { wrapper } = await open()
-    await button(wrapper, 'Edit layout')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
     await wrapper.findAll('[aria-label="Remove widget"]')[0]!.trigger('click')
     expect(wrapper.findAll('section')).toHaveLength(1)
 
-    await button(wrapper, 'Cancel')!.trigger('click')
+    await getButton(wrapper, 'Cancel').trigger('click')
     expect(wrapper.findAll('section h2').map((h) => h.text())).toEqual(['News', 'Weather'])
     expect(fakeApi.callsTo('PUT dashboards/:id/layout')).toHaveLength(0)
   })
@@ -190,8 +188,8 @@ describe('edit mode', () => {
   it('"Done" without any change does not call the server', async () => {
     serve()
     const { wrapper } = await open()
-    await button(wrapper, 'Edit layout')!.trigger('click')
-    await button(wrapper, 'Done')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
+    await getButton(wrapper, 'Done').trigger('click')
     await flushPromises()
     expect(fakeApi.callsTo('PUT dashboards/:id/layout')).toHaveLength(0)
     expect(wrapper.find('.drag-handle').exists()).toBe(false)
@@ -200,18 +198,18 @@ describe('edit mode', () => {
   it('opens the settings of a widget with its current values', async () => {
     serve()
     const { wrapper } = await open()
-    await button(wrapper, 'Edit layout')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
     await wrapper.findAll('[aria-label="Widget settings"]')[0]!.trigger('click')
 
     expect(wrapper.get('[role="dialog"] h2').text()).toBe('Widget settings')
-    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('News')
+    expect(inputOf(wrapper, '#feed-title').value).toBe('News')
   })
 
   it('renames a widget from its card', async () => {
     serve()
     fakeApi.on('PATCH widgets/:id', { body: { ...news, title: 'Tech' } })
     const { wrapper } = await open()
-    await button(wrapper, 'Edit layout')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
 
     await wrapper.findAll('[aria-label="Rename widget"]')[0]!.trigger('click')
     const input = wrapper.get('input[aria-label="Widget title"]')
@@ -228,10 +226,10 @@ describe('edit mode', () => {
     serve()
     fakeApi.on('PATCH widgets/:id', { body: { ...news, color: 'blue' } })
     const { wrapper } = await open()
-    await button(wrapper, 'Edit layout')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
 
     await wrapper.findAll('[aria-label="Widget color"]')[0]!.trigger('click')
-    ;(document.body.querySelector('input[aria-label="Blue"]') as HTMLInputElement).click()
+    inputIn(document.body, 'input[aria-label="Blue"]').click()
     await flushPromises()
 
     const [call] = fakeApi.callsTo('PATCH widgets/:id')
@@ -247,13 +245,13 @@ describe('edit mode', () => {
     fakeApi.on('POST dashboards/:id/widgets', { status: 201, body: widget('w3') })
     const { wrapper } = await open()
 
-    await button(wrapper, 'Edit layout')!.trigger('click')
-    await button(wrapper, 'Add widget')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
+    await getButton(wrapper, 'Add widget').trigger('click')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
 
-    await button(wrapper, 'Feed list')!.trigger('click')
+    await getButton(wrapper, 'Feed list').trigger('click')
     await wrapper.get('input[aria-label="Feed address 1"]').setValue('a.example')
-    await button(wrapper, 'Look up')!.trigger('click')
+    await getButton(wrapper, 'Look up').trigger('click')
     await flushPromises()
     await wrapper
       .findAll('[role="dialog"] footer button')
@@ -287,7 +285,7 @@ describe('edit mode', () => {
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
     const { wrapper } = await open()
 
-    await button(wrapper, 'Edit layout')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
     await wrapper.get('[aria-label="Rename dashboard"]').trigger('click')
     await wrapper.get('input[aria-label="Dashboard name"]').setValue('Start')
     await wrapper.get('form').trigger('submit')

@@ -5,19 +5,28 @@
  * Paths look like the client's own property chain: api.dashboards[':id'].layout.$put(...) is
  * "PUT dashboards/:id/layout".
  */
+import type { api } from '../api/client'
+
+/** What a typed client call receives, e.g. `{ param: { id: 'd1' }, json: { name: 'Home' } }`. */
+export interface RequestArgs {
+  param?: Record<string, string>
+  query?: Record<string, string>
+  json?: Record<string, unknown>
+}
+
 type Responder = (
-  args: any,
+  args: RequestArgs,
 ) => { status?: number; body?: unknown } | Promise<{ status?: number; body?: unknown }>
 
 export interface RecordedCall {
   key: string
-  args: any
+  args: RequestArgs
 }
 
 const routes = new Map<string, Responder>()
 export const calls: RecordedCall[] = []
 
-async function dispatch(method: string, path: string, args: unknown) {
+async function dispatch(method: string, path: string, args: RequestArgs = {}) {
   const key = `${method} ${path}`
   calls.push({ key, args })
   const responder = routes.get(key)
@@ -35,7 +44,7 @@ function proxyFor(path: string[]): unknown {
     get(_target, prop) {
       if (typeof prop !== 'string') return undefined
       if (prop.startsWith('$')) {
-        return (args?: unknown) => dispatch(prop.slice(1).toUpperCase(), path.join('/'), args)
+        return (args?: RequestArgs) => dispatch(prop.slice(1).toUpperCase(), path.join('/'), args)
       }
       return proxyFor([...path, prop])
     },
@@ -43,7 +52,8 @@ function proxyFor(path: string[]): unknown {
 }
 
 export const fakeApi = {
-  api: proxyFor([]) as any,
+  // The proxy answers every property chain and `$method` call the typed client has.
+  api: proxyFor([]) as typeof api,
 
   /** Answer `METHOD path` with a fixed body (or a function of the request). */
   on(key: string, answer: Responder | { status?: number; body?: unknown }) {

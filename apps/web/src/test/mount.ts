@@ -21,7 +21,7 @@ export async function mountApp<T extends Component>(
   await router.isReady()
 
   const wrapper = mount(component, {
-    ...(rest as object),
+    ...rest,
     global: {
       ...globalOptions,
       plugins: [
@@ -31,7 +31,7 @@ export async function mountApp<T extends Component>(
         ...(globalOptions?.plugins ?? []),
       ],
     },
-  } as ComponentMountingOptions<T>)
+  })
 
   return { wrapper, queryClient, router, pinia }
 }

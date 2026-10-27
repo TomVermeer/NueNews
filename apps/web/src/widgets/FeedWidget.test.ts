@@ -5,8 +5,10 @@ import FeedWidget from './FeedWidget.vue'
 
 const NOW = new Date('2026-02-01T12:00:00Z')
 
-function render(props: Record<string, unknown>) {
-  return mount(FeedWidget, { props: { now: NOW, ...props } as never })
+type Props = InstanceType<typeof FeedWidget>['$props']
+
+function render(props: Omit<Props, 'now'>) {
+  return mount(FeedWidget, { props: { now: NOW, ...props } })
 }
 
 describe('FeedWidget', () => {

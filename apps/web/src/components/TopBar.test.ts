@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardSummary } from '../api/types'
 import { mountApp } from '../test/mount'
 import TopBar from './TopBar.vue'
+import { findButton, getButton, inputOf } from '../test/dom'
 
 const dashboards: DashboardSummary[] = [
   { id: 'd1', name: 'Home', position: 0 },
@@ -18,11 +19,9 @@ const base = {
   updatedAt: null as Date | null,
 }
 
-const render = (props: Partial<typeof base> & { updatedAt?: Date | null } = {}) =>
-  mountApp(TopBar, { props: { ...base, ...props } })
-
-const button = (wrapper: { findAll: (s: string) => any[] }, text: string) =>
-  wrapper.findAll('button').find((b) => b.text().includes(text))
+const render = (
+  props: Partial<typeof base> & { updatedAt?: Date | null; canSignOut?: boolean } = {},
+) => mountApp(TopBar, { props: { ...base, ...props } })
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -69,10 +68,10 @@ describe('TopBar in view mode', () => {
   it('offers refresh and edit', async () => {
     const { wrapper } = await render()
     await wrapper.get('[aria-label="Refresh all widgets"]').trigger('click')
-    await button(wrapper, 'Edit layout')!.trigger('click')
+    await getButton(wrapper, 'Edit layout').trigger('click')
     expect(wrapper.emitted('refresh')).toHaveLength(1)
     expect(wrapper.emitted('edit')).toHaveLength(1)
-    expect(button(wrapper, 'Save layout')).toBeUndefined()
+    expect(findButton(wrapper, 'Save layout')).toBeUndefined()
   })
 
   it('shows when the data was last updated', async () => {
@@ -86,35 +85,35 @@ describe('TopBar in view mode', () => {
       refreshing.wrapper.get('[aria-label="Refresh all widgets"]').attributes('disabled'),
     ).toBeDefined()
     const none = await render({ activeId: undefined })
-    expect(button(none.wrapper, 'Edit layout')!.attributes('disabled')).toBeDefined()
+    expect(getButton(none.wrapper, 'Edit layout').attributes('disabled')).toBeDefined()
   })
 })
 
 describe('TopBar in edit mode', () => {
   it('replaces refresh and edit with add, cancel and save', async () => {
     const { wrapper } = await render({ editing: true })
-    expect(button(wrapper, 'Edit layout')).toBeUndefined()
+    expect(findButton(wrapper, 'Edit layout')).toBeUndefined()
 
-    await button(wrapper, 'Add widget')!.trigger('click')
-    await button(wrapper, 'Cancel')!.trigger('click')
+    await getButton(wrapper, 'Add widget').trigger('click')
+    await getButton(wrapper, 'Cancel').trigger('click')
     expect(wrapper.emitted('add-widget')).toHaveLength(1)
     expect(wrapper.emitted('cancel')).toHaveLength(1)
   })
 
   it('says "Save layout" when there are changes and "Done" when there are none', async () => {
     const dirty = await render({ editing: true, dirty: true })
-    expect(button(dirty.wrapper, 'Save layout')).toBeDefined()
-    await button(dirty.wrapper, 'Save layout')!.trigger('click')
+    expect(findButton(dirty.wrapper, 'Save layout')).toBeDefined()
+    await getButton(dirty.wrapper, 'Save layout').trigger('click')
     expect(dirty.wrapper.emitted('save')).toHaveLength(1)
 
     const clean = await render({ editing: true, dirty: false })
-    expect(button(clean.wrapper, 'Done')).toBeDefined()
-    expect(button(clean.wrapper, 'Save layout')).toBeUndefined()
+    expect(findButton(clean.wrapper, 'Done')).toBeDefined()
+    expect(findButton(clean.wrapper, 'Save layout')).toBeUndefined()
   })
 
   it('shows progress while saving', async () => {
     const { wrapper } = await render({ editing: true, dirty: true, saving: true })
-    const save = button(wrapper, 'Saving…')!
+    const save = getButton(wrapper, 'Saving…')
     expect(save.attributes('disabled')).toBeDefined()
   })
 
@@ -122,7 +121,7 @@ describe('TopBar in edit mode', () => {
     const { wrapper } = await render({ editing: true })
     await wrapper.get('[aria-label="Rename dashboard"]').trigger('click')
     const input = wrapper.get('input[aria-label="Dashboard name"]')
-    expect((input.element as HTMLInputElement).value).toBe('Home')
+    expect(inputOf(wrapper, 'input[aria-label="Dashboard name"]').value).toBe('Home')
     await input.setValue('Start')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('rename-dashboard')).toEqual([['d1', 'Start']])
@@ -152,7 +151,7 @@ describe('TopBar in edit mode', () => {
       const without = await render()
       expect(without.wrapper.find('[aria-label="Sign out"]').exists()).toBe(false)
 
-      const withLogin = await render({ canSignOut: true } as never)
+      const withLogin = await render({ canSignOut: true })
       await withLogin.wrapper.get('[aria-label="Sign out"]').trigger('click')
       expect(withLogin.wrapper.emitted('sign-out')).toHaveLength(1)
     })

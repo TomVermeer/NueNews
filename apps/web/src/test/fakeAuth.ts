@@ -2,7 +2,14 @@ import type { Session } from '@supabase/supabase-js'
 import { vi } from 'vitest'
 
 export function fakeSession(email = 'me@example.com', token = 'token-1'): Session {
+  // Only the fields the app reads; a real Session has many more that do not matter here.
   return { access_token: token, user: { email } } as unknown as Session
+}
+
+/** What `signInWithPassword` resolves with, as far as the app reads it. */
+export interface SignInResult {
+  data: { session: Session | null }
+  error: { message: string } | null
 }
 
 type Listener = (event: string, session: Session | null) => void
@@ -17,10 +24,12 @@ export function createFakeAuthClient(initial: Session | null = null) {
     listeners.forEach((listener) => listener(event, next))
   }
 
-  const signInWithPassword = vi.fn(async ({ email }: { email: string; password: string }) => ({
-    data: { session: fakeSession(email) },
-    error: null as { message: string } | null,
-  }))
+  const signInWithPassword = vi.fn(
+    async ({ email }: { email: string; password: string }): Promise<SignInResult> => ({
+      data: { session: fakeSession(email) },
+      error: null,
+    }),
+  )
 
   const client = {
     auth: {

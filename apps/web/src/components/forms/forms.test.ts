@@ -4,6 +4,7 @@ import { fakeApi } from '../../test/fakeApi'
 import FeedForm from './FeedForm.vue'
 import WeatherForm from './WeatherForm.vue'
 import YouTubeForm from './YouTubeForm.vue'
+import { getButton, inputOf } from '../../test/dom'
 
 vi.mock('../../api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api/client')>()
@@ -49,10 +50,7 @@ describe('FeedForm', () => {
     })
     const wrapper = mount(FeedForm)
     await lookUp(wrapper, 0, 'a.example')
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('Add another feed'))!
-      .trigger('click')
+    await getButton(wrapper, 'Add another feed').trigger('click')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.get('[role="alert"]').text()).toContain('Look up every address')
     expect(wrapper.emitted('submit')).toBeUndefined()
@@ -98,11 +96,9 @@ describe('FeedForm', () => {
         },
       },
     })
-    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('My feeds')
-    expect((wrapper.get('#feed-limit').element as HTMLInputElement).value).toBe('3')
-    expect(
-      (wrapper.get('input[aria-label="Feed address 1"]').element as HTMLInputElement).value,
-    ).toBe('https://x.example/f')
+    expect(inputOf(wrapper, '#feed-title').value).toBe('My feeds')
+    expect(inputOf(wrapper, '#feed-limit').value).toBe('3')
+    expect(inputOf(wrapper, 'input[aria-label="Feed address 1"]').value).toBe('https://x.example/f')
   })
 
   it('suggests the feed name as the title, counting extra feeds', async () => {
@@ -110,29 +106,23 @@ describe('FeedForm', () => {
       body: { kind: 'rss', key: 'https://a.example/f', title: 'Tweakers' },
     })
     const wrapper = mount(FeedForm)
-    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('News')
+    expect(inputOf(wrapper, '#feed-title').value).toBe('News')
 
     await lookUp(wrapper, 0, 'a.example')
-    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('Tweakers')
+    expect(inputOf(wrapper, '#feed-title').value).toBe('Tweakers')
 
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('Add another feed'))!
-      .trigger('click')
+    await getButton(wrapper, 'Add another feed').trigger('click')
     fakeApi.on('POST sources/resolve', {
       body: { kind: 'rss', key: 'https://b.example/f', title: 'The Verge' },
     })
     await lookUp(wrapper, 1, 'b.example')
-    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('Tweakers +1')
+    expect(inputOf(wrapper, '#feed-title').value).toBe('Tweakers +1')
   })
 
   it('lets you remove a feed once there is more than one', async () => {
     const wrapper = mount(FeedForm)
     expect(wrapper.find('[aria-label="Remove feed 1"]').exists()).toBe(false)
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('Add another feed'))!
-      .trigger('click')
+    await getButton(wrapper, 'Add another feed').trigger('click')
     expect(wrapper.findAll('input[aria-label^="Feed address"]')).toHaveLength(2)
     await wrapper.get('[aria-label="Remove feed 2"]').trigger('click')
     expect(wrapper.findAll('input[aria-label^="Feed address"]')).toHaveLength(1)
@@ -148,9 +138,7 @@ describe('FeedForm', () => {
       },
     })
     await wrapper.get('[aria-label="Remove feed 1"]').trigger('click')
-    expect(
-      (wrapper.get('input[aria-label="Feed address 1"]').element as HTMLInputElement).value,
-    ).toBe('https://y.example/f')
+    expect(inputOf(wrapper, 'input[aria-label="Feed address 1"]').value).toBe('https://y.example/f')
   })
 })
 
@@ -171,7 +159,7 @@ describe('YouTubeForm', () => {
     await wrapper.get('#yt-limit').setValue('6')
     await wrapper.get('form').trigger('submit')
 
-    expect(fakeApi.callsTo('POST sources/resolve')[0]!.args.json.kind).toBe('youtube')
+    expect(fakeApi.callsTo('POST sources/resolve')[0]!.args.json?.kind).toBe('youtube')
     expect(wrapper.emitted('submit')![0]).toEqual([
       {
         title: 'Fire',
@@ -185,14 +173,14 @@ describe('YouTubeForm', () => {
       body: { kind: 'youtube', key: 'UCsBjURrPoezykLs9EqgamOA', title: 'Fireship' },
     })
     const wrapper = mount(YouTubeForm)
-    expect((wrapper.get('#yt-title').element as HTMLInputElement).value).toBe('YouTube')
+    expect(inputOf(wrapper, '#yt-title').value).toBe('YouTube')
 
     await lookUp(wrapper, 0, '@Fireship')
-    expect((wrapper.get('#yt-title').element as HTMLInputElement).value).toBe('Fireship')
+    expect(inputOf(wrapper, '#yt-title').value).toBe('Fireship')
 
     await wrapper.get('#yt-title').setValue('Dev videos')
     await wrapper.get('input[aria-label="Name for channel 1"]').setValue('Fire')
-    expect((wrapper.get('#yt-title').element as HTMLInputElement).value).toBe('Dev videos')
+    expect(inputOf(wrapper, '#yt-title').value).toBe('Dev videos')
   })
 
   it('keeps the remaining channels in place when you remove the first one', async () => {
@@ -210,9 +198,7 @@ describe('YouTubeForm', () => {
       },
     })
     await wrapper.get('[aria-label="Remove channel 1"]').trigger('click')
-    expect((wrapper.get('input[aria-label="Channel 1"]').element as HTMLInputElement).value).toBe(
-      'UCbbbbbbbbbbbbbbbbbbbbbb',
-    )
+    expect(inputOf(wrapper, 'input[aria-label="Channel 1"]').value).toBe('UCbbbbbbbbbbbbbbbbbbbbbb')
   })
 })
 
@@ -299,7 +285,7 @@ describe('WeatherForm', () => {
     await flushPromises()
     await wrapper.get('ul[aria-label="Search results"] button').trigger('click')
 
-    expect((wrapper.get('#weather-title').element as HTMLInputElement).value).toBe('Home')
+    expect(inputOf(wrapper, '#weather-title').value).toBe('Home')
   })
 
   it('does not rename an existing widget when its place changes', async () => {
@@ -318,7 +304,7 @@ describe('WeatherForm', () => {
     await flushPromises()
     await wrapper.get('ul[aria-label="Search results"] button').trigger('click')
 
-    expect((wrapper.get('#weather-title').element as HTMLInputElement).value).toBe('Home weather')
+    expect(inputOf(wrapper, '#weather-title').value).toBe('Home weather')
   })
 
   it('prefills from an existing widget', () => {
@@ -331,6 +317,6 @@ describe('WeatherForm', () => {
       },
     })
     expect(wrapper.text()).toContain('Delft')
-    expect((wrapper.get('input[value="imperial"]').element as HTMLInputElement).checked).toBe(true)
+    expect(inputOf(wrapper, 'input[value="imperial"]').checked).toBe(true)
   })
 })

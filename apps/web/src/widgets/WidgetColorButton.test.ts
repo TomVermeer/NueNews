@@ -1,11 +1,13 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { WidgetColor } from '@nuenews/shared'
 import WidgetColorButton from './WidgetColorButton.vue'
+import { inputIn } from '../test/dom'
 
 const mounted: ReturnType<typeof mount>[] = []
-function render(modelValue: string | null = null) {
+function render(modelValue: WidgetColor | null = null) {
   const wrapper = mount(WidgetColorButton, {
-    props: { modelValue } as never,
+    props: { modelValue },
     attachTo: document.body,
   })
   mounted.push(wrapper)
@@ -31,7 +33,7 @@ describe('WidgetColorButton', () => {
   it('reports the chosen color and closes', async () => {
     const wrapper = render()
     await wrapper.get('button').trigger('click')
-    const teal = panel()!.querySelector('input[aria-label="Teal"]') as HTMLInputElement
+    const teal = inputIn(document.body, '[role="dialog"] input[aria-label="Teal"]')
     teal.click()
     await wrapper.vm.$nextTick()
 

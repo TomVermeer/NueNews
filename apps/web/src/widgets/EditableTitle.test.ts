@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import EditableTitle from './EditableTitle.vue'
+import { inputOf } from '../test/dom'
 
 const render = (editable: boolean) =>
   mount(EditableTitle, { props: { title: 'News', editable }, attachTo: document.body })
@@ -17,7 +18,7 @@ describe('EditableTitle', () => {
     await wrapper.get('[aria-label="Rename widget"]').trigger('click')
 
     const input = wrapper.get('input[aria-label="Widget title"]')
-    expect((input.element as HTMLInputElement).value).toBe('News')
+    expect(inputOf(wrapper, 'input[aria-label="Widget title"]').value).toBe('News')
     await input.setValue('  Tech news  ')
     await input.trigger('keydown.enter')
 

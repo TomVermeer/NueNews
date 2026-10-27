@@ -1,6 +1,6 @@
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createFakeAuthClient } from '../test/fakeAuth'
+import { createFakeAuthClient, type SignInResult } from '../test/fakeAuth'
 import { mountApp } from '../test/mount'
 import LoginPage from './LoginPage.vue'
 
@@ -68,7 +68,7 @@ describe('LoginPage', () => {
 
   it('shows why sign-in failed and stays on the page', async () => {
     fake.signInWithPassword.mockResolvedValueOnce({
-      data: { session: null as never },
+      data: { session: null },
       error: { message: 'Invalid login credentials' },
     })
     const { wrapper, router } = await open()
@@ -80,9 +80,9 @@ describe('LoginPage', () => {
   })
 
   it('does not submit twice while signing in', async () => {
-    let finish: (value: never) => void = () => {}
+    let finish: (value: SignInResult) => void = () => {}
     fake.signInWithPassword.mockImplementationOnce(
-      () => new Promise((resolve) => (finish = resolve as never)),
+      () => new Promise<SignInResult>((resolve) => (finish = resolve)),
     )
     const { wrapper } = await open()
     await wrapper.get('#login-email').setValue('me@example.com')
@@ -92,7 +92,7 @@ describe('LoginPage', () => {
 
     expect(fake.signInWithPassword).toHaveBeenCalledTimes(1)
     expect(wrapper.get('button[type="submit"]').text()).toBe('Signing in…')
-    finish({ data: { session: null }, error: null } as never)
+    finish({ data: { session: null }, error: null })
     await flushPromises()
   })
 })
