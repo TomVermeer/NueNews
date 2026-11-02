@@ -6,7 +6,7 @@ import { BlockedUrlError } from '../lib/ssrf'
 import { HttpError } from '../lib/http'
 import { ProviderError } from '../providers/errors'
 import type { ProviderRegistry } from '../providers/registry'
-import type { FetchContext } from '../providers/types'
+import type { FetchContext, FetchResult, SourceRef } from '../providers/types'
 import { nextFetchAfterError, nextFetchAfterSuccess } from './backoff'
 
 export type SourceRow = typeof sources.$inferSelect
@@ -22,6 +22,17 @@ export interface RefreshDeps {
 export type RefreshOutcome = 'ok' | 'not_modified' | 'error'
 
 const DEFAULT_KEEP_ITEMS = 100
+
+/** What a provider needs to know about a source. */
+function toSourceRef(source: SourceRow): SourceRef {
+  return {
+    id: source.id,
+    kind: source.kind,
+    key: source.key,
+    etag: source.etag,
+    lastModified: source.lastModified,
+  }
+}
 
 /** Errors with a message that is safe to store and show; anything else is logged and hidden. */
 function describeError(error: unknown): { message: string; retryAfterSeconds?: number } {
@@ -43,21 +54,68 @@ async function fillIcon(deps: RefreshDeps, source: SourceRow): Promise<void> {
   const provider = deps.registry.get(source.kind)
   if (source.faviconUrl || !provider.fetchIcon) return
   try {
-    const faviconUrl = await provider.fetchIcon(
-      {
-        id: source.id,
-        kind: source.kind,
-        key: source.key,
-        etag: source.etag,
-        lastModified: source.lastModified,
-      },
-      deps.ctx,
-    )
+    const faviconUrl = await provider.fetchIcon(toSourceRef(source), deps.ctx)
     if (!faviconUrl) return
     await deps.db.update(sources).set({ faviconUrl }).where(eq(sources.id, source.id))
   } catch {
     // Best effort, see above.
   }
+}
+
+type FreshItems = Extract<FetchResult, { status: 'ok' }>
+
+/** Stores new items, keeps only the newest, and saves the validators and details they came with. */
+async function recordItems(
+  deps: RefreshDeps,
+  source: SourceRow,
+  result: FreshItems,
+  now: Date,
+): Promise<void> {
+  await deps.db.transaction(async (tx) => {
+    await upsertItems(tx, source.id, result.items, now)
+    await pruneItems(tx, source.id, deps.keepItems ?? DEFAULT_KEEP_ITEMS)
+    await tx
+      .update(sources)
+      .set({
+        etag: result.etag ?? null,
+        lastModified: result.lastModified ?? null,
+        title: source.title ?? result.title ?? null,
+        siteUrl: source.siteUrl ?? result.siteUrl ?? null,
+        lastFetchedAt: now,
+        nextFetchAt: nextFetchAfterSuccess(now, source.intervalMin),
+        lastStatus: 'ok',
+        errorCount: 0,
+      })
+      .where(eq(sources.id, source.id))
+  })
+}
+
+/** The source has not changed since the last fetch: only the schedule moves on. */
+async function recordNotModified(db: Db, source: SourceRow, now: Date): Promise<void> {
+  await db
+    .update(sources)
+    .set({
+      lastFetchedAt: now,
+      nextFetchAt: nextFetchAfterSuccess(now, source.intervalMin),
+      lastStatus: 'not_modified',
+      errorCount: 0,
+    })
+    .where(eq(sources.id, source.id))
+}
+
+/** Counts the failure and backs off, honouring the site's Retry-After when it sent one. */
+async function recordError(db: Db, source: SourceRow, error: unknown, now: Date): Promise<void> {
+  const { message, retryAfterSeconds } = describeError(error)
+  const errorCount = source.errorCount + 1
+  await db
+    .update(sources)
+    .set({
+      lastFetchedAt: now,
+      nextFetchAt: nextFetchAfterError(now, source.intervalMin, errorCount, retryAfterSeconds),
+      lastStatus: `error: ${message}`.slice(0, 200),
+      errorCount,
+    })
+    .where(eq(sources.id, source.id))
 }
 
 /** Fetches one source and records the result: items, cache validators, status and next fetch time. */
@@ -66,75 +124,30 @@ export async function refreshSource(
   source: SourceRow,
   now: Date,
 ): Promise<RefreshOutcome> {
-  const { db, registry, ctx } = deps
-
   try {
-    const result = await registry.get(source.kind).fetch(
-      {
-        id: source.id,
-        kind: source.kind,
-        key: source.key,
-        etag: source.etag,
-        lastModified: source.lastModified,
-      },
-      ctx,
-    )
-
-    if (result.status === 'ok') {
-      await db.transaction(async (tx) => {
-        await upsertItems(tx, source.id, result.items, now)
-        await pruneItems(tx, source.id, deps.keepItems ?? DEFAULT_KEEP_ITEMS)
-        await tx
-          .update(sources)
-          .set({
-            etag: result.etag ?? null,
-            lastModified: result.lastModified ?? null,
-            title: source.title ?? result.title ?? null,
-            siteUrl: source.siteUrl ?? result.siteUrl ?? null,
-            lastFetchedAt: now,
-            nextFetchAt: nextFetchAfterSuccess(now, source.intervalMin),
-            lastStatus: 'ok',
-            errorCount: 0,
-          })
-          .where(eq(sources.id, source.id))
-      })
-      await fillIcon(deps, source)
-      return 'ok'
-    }
-
-    await db
-      .update(sources)
-      .set({
-        lastFetchedAt: now,
-        nextFetchAt: nextFetchAfterSuccess(now, source.intervalMin),
-        lastStatus: 'not_modified',
-        errorCount: 0,
-      })
-      .where(eq(sources.id, source.id))
+    const result = await deps.registry.get(source.kind).fetch(toSourceRef(source), deps.ctx)
+    if (result.status === 'ok') await recordItems(deps, source, result, now)
+    else await recordNotModified(deps.db, source, now)
     await fillIcon(deps, source)
-    return 'not_modified'
+    return result.status
   } catch (error) {
-    const { message, retryAfterSeconds } = describeError(error)
-    const errorCount = source.errorCount + 1
-    await db
-      .update(sources)
-      .set({
-        lastFetchedAt: now,
-        nextFetchAt: nextFetchAfterError(now, source.intervalMin, errorCount, retryAfterSeconds),
-        lastStatus: `error: ${message}`.slice(0, 200),
-        errorCount,
-      })
-      .where(eq(sources.id, source.id))
+    await recordError(deps.db, source, error, now)
     return 'error'
   }
+}
+
+export interface DueSourcesQuery {
+  /** Only sources of kinds this registry has a provider for. */
+  readonly registry: ProviderRegistry
+  readonly now: Date
+  /** At most this many, the longest overdue first. */
+  readonly limit: number
 }
 
 /** Sources that are due and that some widget actually uses (nobody polls orphaned sources). */
 export async function selectDueSources(
   db: Db,
-  registry: ProviderRegistry,
-  now: Date,
-  limit: number,
+  { registry, now, limit }: DueSourcesQuery,
 ): Promise<SourceRow[]> {
   const kinds = registry.kinds()
   if (kinds.length === 0) return []

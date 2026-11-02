@@ -1,8 +1,8 @@
 import { XMLParser } from 'fast-xml-parser'
 import { normalizedItemSchema, type NormalizedItem } from '@nuenews/shared'
 import { errorMessage } from '../../lib/errors'
-import { ProviderError } from '../errors'
 import { decodeEntities, htmlToText, makeExcerpt, truncate } from '../../lib/text'
+import { ProviderError } from '../errors'
 
 export class FeedParseError extends Error {
   constructor(message: string) {
@@ -192,45 +192,51 @@ export function tryReadFeed(response: Downloaded, now: Date): ParsedFeed | undef
   }
 }
 
-/** Parses an RSS 2.0, RSS 1.0 (RDF) or Atom document into normalized items. */
-export function parseFeed(xml: string, baseUrl: string, now: Date): ParsedFeed {
-  let doc: Node
+function parseXml(xml: string): Node {
   try {
-    doc = parser.parse(xml)
+    return parser.parse(xml)
   } catch (error) {
     throw new FeedParseError(`Could not read the feed: ${errorMessage(error)}`)
   }
+}
 
+/** The feed's own details (title, link) and its raw entries, whichever of the three formats it is. */
+interface FeedParts {
+  readonly meta: Node | undefined
+  readonly entries: unknown[]
+}
+
+function feedParts(doc: Node): FeedParts {
   const rss = asNode(asNode(doc.rss)?.channel)
+  if (rss) return { meta: rss, entries: toArray(rss.item) }
+
   const atom = asNode(doc.feed)
+  if (atom) return { meta: atom, entries: toArray(atom.entry) }
+
   const rdf = asNode(doc['rdf:RDF'])
+  if (rdf) return { meta: asNode(rdf.channel), entries: toArray(rdf.item) }
 
-  let meta: Node | undefined
-  let rawItems: unknown[]
-  if (rss) {
-    meta = rss
-    rawItems = toArray(rss.item)
-  } else if (atom) {
-    meta = atom
-    rawItems = toArray(atom.entry)
-  } else if (rdf) {
-    meta = asNode(rdf.channel)
-    rawItems = toArray(rdf.item)
-  } else {
-    throw new FeedParseError('This address does not contain an RSS or Atom feed')
-  }
+  throw new FeedParseError('This address does not contain an RSS or Atom feed')
+}
 
+/** Normalizes up to MAX_ITEMS entries, dropping the ones that are unusable (no link, say). */
+function normalizeItems(entries: unknown[], baseUrl: string, now: Date): NormalizedItem[] {
   const items: NormalizedItem[] = []
-  for (const raw of rawItems.slice(0, MAX_ITEMS)) {
-    const node = asNode(raw)
+  for (const entry of entries.slice(0, MAX_ITEMS)) {
+    const node = asNode(entry)
     const item = node && normalizeItem(node, baseUrl, now)
     if (item) items.push(item)
   }
+  return items
+}
 
+/** Parses an RSS 2.0, RSS 1.0 (RDF) or Atom document into normalized items. */
+export function parseFeed(xml: string, baseUrl: string, now: Date): ParsedFeed {
+  const { meta, entries } = feedParts(parseXml(xml))
   const title = text(meta?.title)
   return {
     title: title ? htmlToText(title) : undefined,
     siteUrl: pickLink(toArray(meta?.link), baseUrl),
-    items,
+    items: normalizeItems(entries, baseUrl, now),
   }
 }

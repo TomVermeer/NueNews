@@ -65,36 +65,32 @@ export function sourceLabels(type: WidgetType, config: unknown): Map<string, str
   return new Map()
 }
 
-/** Makes the widget's source links match `refs`, creating any sources that are new. */
-export async function linkWidgetSources(
+/** The id of the source for `ref`, creating it (due right away) when it does not exist yet. */
+async function ensureSource(
   db: Db,
-  widgetId: string,
-  refs: SourceRef[],
+  ref: SourceRef,
   now: Date,
-): Promise<{ sourceIds: string[]; newSourceIds: string[] }> {
-  const sourceIds: string[] = []
-  const newSourceIds: string[] = []
+): Promise<{ id: string; created: boolean }> {
+  const created = firstRow(
+    await db
+      .insert(sources)
+      .values({ kind: ref.kind, key: ref.key, nextFetchAt: now })
+      .onConflictDoNothing({ target: [sources.kind, sources.key] })
+      .returning({ id: sources.id }),
+  )
+  if (created) return { id: created.id, created: true }
 
-  for (const ref of refs) {
-    const created = firstRow(
-      await db
-        .insert(sources)
-        .values({ kind: ref.kind, key: ref.key, nextFetchAt: now })
-        .onConflictDoNothing({ target: [sources.kind, sources.key] })
-        .returning({ id: sources.id }),
-    )
-    const id =
-      created?.id ??
-      onlyRow(
-        await db
-          .select({ id: sources.id })
-          .from(sources)
-          .where(and(eq(sources.kind, ref.kind), eq(sources.key, ref.key))),
-      ).id
-    sourceIds.push(id)
-    if (created) newSourceIds.push(id)
-  }
+  const existing = onlyRow(
+    await db
+      .select({ id: sources.id })
+      .from(sources)
+      .where(and(eq(sources.kind, ref.kind), eq(sources.key, ref.key))),
+  )
+  return { id: existing.id, created: false }
+}
 
+/** Links the widget to exactly these sources: stale links are removed and missing ones added. */
+async function setWidgetLinks(db: Db, widgetId: string, sourceIds: string[]): Promise<void> {
   const current = (
     await db
       .select({ sourceId: widgetSources.sourceId })
@@ -111,8 +107,25 @@ export async function linkWidgetSources(
   for (const sourceId of sourceIds.filter((id) => !current.includes(id))) {
     await db.insert(widgetSources).values({ widgetId, sourceId })
   }
+}
 
-  return { sourceIds, newSourceIds }
+/** Makes the widget's source links match `refs`, creating any sources that are new. */
+export async function linkWidgetSources(
+  db: Db,
+  widgetId: string,
+  refs: SourceRef[],
+  now: Date,
+): Promise<{ sourceIds: string[]; newSourceIds: string[] }> {
+  const ensured: { id: string; created: boolean }[] = []
+  // One at a time: the inserts share a transaction.
+  for (const ref of refs) ensured.push(await ensureSource(db, ref, now))
+
+  const sourceIds = ensured.map((source) => source.id)
+  await setWidgetLinks(db, widgetId, sourceIds)
+  return {
+    sourceIds,
+    newSourceIds: ensured.filter((source) => source.created).map((source) => source.id),
+  }
 }
 
 /** The next free spot: left edge, below everything already on the dashboard. */
