@@ -200,6 +200,26 @@ describe('YouTubeForm', () => {
     await wrapper.get('[aria-label="Remove channel 1"]').trigger('click')
     expect(inputOf(wrapper, 'input[aria-label="Channel 1"]').value).toBe('UCbbbbbbbbbbbbbbbbbbbbbb')
   })
+
+  it('adds channel rows, and offers removal only once there is more than one', async () => {
+    const wrapper = mount(YouTubeForm)
+    expect(wrapper.find('[aria-label="Remove channel 1"]').exists()).toBe(false)
+    await getButton(wrapper, 'Add another channel').trigger('click')
+    expect(wrapper.findAll('input[aria-label^="Channel "]')).toHaveLength(2)
+    expect(wrapper.find('[aria-label="Remove channel 2"]').exists()).toBe(true)
+  })
+
+  it('refuses channels that were typed but not looked up', async () => {
+    const wrapper = mount(YouTubeForm)
+    await wrapper.get('input[aria-label="Channel 1"]').setValue('@Fireship')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Add at least one channel')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+  })
+
+  it('prefills the video limit, defaulting to 3', () => {
+    expect(inputOf(mount(YouTubeForm), '#yt-limit').value).toBe('3')
+  })
 })
 
 describe('WeatherForm', () => {
@@ -251,6 +271,41 @@ describe('WeatherForm', () => {
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
     expect(wrapper.text()).toContain('No places found')
+  })
+
+  it('shows why a search failed', async () => {
+    vi.useFakeTimers()
+    fakeApi.on('GET geocode', {
+      status: 502,
+      body: { error: { code: 'upstream', message: 'Geocoding is unavailable' } },
+    })
+    const wrapper = mount(WeatherForm)
+    await wrapper.get('#weather-search').setValue('Utrecht')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toBe('Geocoding is unavailable')
+  })
+
+  it('ignores the answer to a search the user has typed past', async () => {
+    vi.useFakeTimers()
+    let answer: (value: { body: unknown }) => void = () => {}
+    fakeApi.on('GET geocode', () => new Promise((resolve) => (answer = resolve)))
+    const wrapper = mount(WeatherForm)
+    await wrapper.get('#weather-search').setValue('Utrecht')
+    await vi.advanceTimersByTimeAsync(300)
+    await wrapper.get('#weather-search').setValue('Delft')
+    answer({ body: { results: places } })
+    await flushPromises()
+    expect(wrapper.find('ul[aria-label="Search results"]').exists()).toBe(false)
+  })
+
+  it('stops a pending search when it is unmounted', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(WeatherForm)
+    await wrapper.get('#weather-search').setValue('Utrecht')
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(fakeApi.callsTo('GET geocode')).toHaveLength(0)
   })
 
   it('submits the chosen place and units', async () => {
@@ -305,6 +360,21 @@ describe('WeatherForm', () => {
     await wrapper.get('ul[aria-label="Search results"] button').trigger('click')
 
     expect(inputOf(wrapper, '#weather-title').value).toBe('Home weather')
+  })
+
+  it('says why it refuses an empty title', async () => {
+    const wrapper = mount(WeatherForm, {
+      props: {
+        initial: {
+          title: 'Home weather',
+          config: { location: { name: 'Delft', lat: 52, lon: 4.36 }, units: 'metric' },
+        },
+      },
+    })
+    await wrapper.get('#weather-title').setValue('  ')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Give the widget a title')
   })
 
   it('prefills from an existing widget', () => {
