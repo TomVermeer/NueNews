@@ -7,183 +7,172 @@ import {
   widgetConfigSchemas,
 } from '@nuenews/shared'
 import type { AppDeps, Env } from '../context'
+import type { Db } from '../db/client'
 import { itemState, items, sources, widgetSources, widgets } from '../db/schema'
-import { onlyRow } from '../db/query'
-import { ApiError, notFound, validate } from '../http'
+import { ApiError, validate } from '../http'
 import { refreshSourcesNow } from '../services/refreshNow'
+import { requireWidget, sourceLabels, type WidgetRow } from '../services/widgetSources'
+import { updateWidget } from '../services/widgets'
 import { getWeather } from '../weather/service'
-import {
-  linkWidgetSources,
-  ownedWidget,
-  sourceLabels,
-  sourceRefsFor,
-  toWidgetDto,
-} from '../services/widgetSources'
+
+type SourceRow = typeof sources.$inferSelect
+type Labels = ReturnType<typeof sourceLabels>
+
+async function sourceIdsOf(db: Db, widgetId: string) {
+  const rows = await db
+    .select({ id: widgetSources.sourceId })
+    .from(widgetSources)
+    .where(eq(widgetSources.widgetId, widgetId))
+  return rows.map((row) => row.id)
+}
+
+const widgetSummary = (widget: WidgetRow) => ({
+  id: widget.id,
+  type: widget.type,
+  title: widget.title,
+})
+
+async function weatherData(deps: AppDeps, widget: WidgetRow) {
+  const config = weatherConfigSchema.parse(widget.config)
+  const { snapshot, fetchedAt, stale } = await getWeather(
+    { db: deps.db, http: deps.fetchContext.http, now: deps.now },
+    config.location,
+    config.units,
+  )
+  return {
+    widget: widgetSummary(widget),
+    location: config.location,
+    units: config.units,
+    ...snapshot,
+    fetchedAt,
+    stale,
+    attribution: WEATHER_ATTRIBUTION,
+  }
+}
+
+/** The newest items of these sources, with the user's seen and read state. */
+async function newestItems(db: Db, userId: string, sourceIds: string[], limit: number) {
+  if (sourceIds.length === 0) return []
+  return await db
+    .select({
+      id: items.id,
+      sourceId: items.sourceId,
+      title: items.title,
+      url: items.url,
+      excerpt: items.excerpt,
+      imageUrl: items.imageUrl,
+      author: items.author,
+      publishedAt: items.publishedAt,
+      seenAt: itemState.seenAt,
+      readAt: itemState.readAt,
+    })
+    .from(items)
+    .leftJoin(itemState, and(eq(itemState.itemId, items.id), eq(itemState.userId, userId)))
+    .where(inArray(items.sourceId, sourceIds))
+    .orderBy(desc(items.publishedAt))
+    .limit(limit)
+}
+
+type ItemRow = Awaited<ReturnType<typeof newestItems>>[number]
+
+/** The newest `limit` items of every source, merged newest first. */
+async function newestItemsPerSource(
+  db: Db,
+  userId: string,
+  sourceIds: string[],
+  limit: number,
+): Promise<ItemRow[]> {
+  const perSource = await Promise.all(sourceIds.map((id) => newestItems(db, userId, [id], limit)))
+  return perSource.flat().sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+}
+
+function toItemDto(
+  { seenAt, readAt, ...item }: ItemRow,
+  source: SourceRow | undefined,
+  labels: Labels,
+) {
+  return {
+    ...item,
+    sourceName: (source && labels.get(source.key)) || source?.title || null,
+    sourceUrl: source?.siteUrl ?? null,
+    sourceIconUrl: source?.faviconUrl ?? null,
+    seen: seenAt !== null,
+    read: readAt !== null,
+  }
+}
+
+/** What went wrong on the last fetch, or null while the source is healthy. */
+function sourceError(source: SourceRow): string | null {
+  if (source.errorCount === 0) return null
+  return source.lastStatus ?? 'error'
+}
+
+function toSourceDto(source: SourceRow, labels: Labels) {
+  return {
+    id: source.id,
+    title: (labels.get(source.key) ?? source.title) || null,
+    siteUrl: source.siteUrl,
+    iconUrl: source.faviconUrl,
+    lastFetchedAt: source.lastFetchedAt,
+    error: sourceError(source),
+  }
+}
+
+async function feedData(deps: AppDeps, userId: string, widget: WidgetRow) {
+  if (widget.type !== 'feed' && widget.type !== 'youtube') {
+    throw new ApiError(
+      422,
+      'widget_type_unavailable',
+      `The "${widget.type}" widget is not available yet`,
+    )
+  }
+
+  const { db } = deps
+  const config = widgetConfigSchemas[widget.type].parse(widget.config)
+  const labels = sourceLabels(widget.type, config)
+  const sourceRows = await db
+    .select()
+    .from(sources)
+    .where(inArray(sources.id, await sourceIdsOf(db, widget.id)))
+  const sourceById = new Map(sourceRows.map((row) => [row.id, row]))
+  // A feed shares its limit across all its sources; a YouTube widget applies it per channel.
+  const sourceIds = [...sourceById.keys()]
+  const itemRows =
+    widget.type === 'youtube'
+      ? await newestItemsPerSource(db, userId, sourceIds, config.limit)
+      : await newestItems(db, userId, sourceIds, config.limit)
+
+  return {
+    widget: widgetSummary(widget),
+    items: itemRows.map((row) => toItemDto(row, sourceById.get(row.sourceId), labels)),
+    sources: sourceRows.map((source) => toSourceDto(source, labels)),
+  }
+}
 
 export function widgetRoutes(deps: AppDeps) {
   const { db } = deps
 
-  const owned = async (userId: string, id: string) => {
-    const widget = await ownedWidget(db, userId, id)
-    if (!widget) throw notFound('Widget')
-    return widget
-  }
-
-  const sourceIdsOf = async (widgetId: string) =>
-    (
-      await db
-        .select({ id: widgetSources.sourceId })
-        .from(widgetSources)
-        .where(eq(widgetSources.widgetId, widgetId))
-    ).map((row) => row.id)
-
-  const latestItems = async (userId: string, sourceIds: string[], limit: number) => {
-    if (sourceIds.length === 0) return []
-    return db
-      .select({
-        id: items.id,
-        sourceId: items.sourceId,
-        title: items.title,
-        url: items.url,
-        excerpt: items.excerpt,
-        imageUrl: items.imageUrl,
-        author: items.author,
-        publishedAt: items.publishedAt,
-        seenAt: itemState.seenAt,
-        readAt: itemState.readAt,
-      })
-      .from(items)
-      .leftJoin(itemState, and(eq(itemState.itemId, items.id), eq(itemState.userId, userId)))
-      .where(inArray(items.sourceId, sourceIds))
-      .orderBy(desc(items.publishedAt))
-      .limit(limit)
-  }
-
-  // The newest `limit` items of every source, merged newest first.
-  const latestItemsPerSource = async (userId: string, sourceIds: string[], limit: number) => {
-    const perSource = await Promise.all(sourceIds.map((id) => latestItems(userId, [id], limit)))
-    return perSource.flat().sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
-  }
-
   return new Hono<Env>()
     .patch('/:id', validate('json', updateWidgetSchema), async (c) => {
-      const widget = await owned(c.get('userId'), c.req.param('id'))
-      const body = c.req.valid('json')
-
-      let config = widget.config
-      if (body.config !== undefined) {
-        const parsed = widgetConfigSchemas[widget.type].safeParse(body.config)
-        if (!parsed.success) {
-          const message = parsed.error.issues
-            .map((issue) => `config.${issue.path.join('.')}: ${issue.message}`)
-            .join('; ')
-          throw new ApiError(400, 'invalid_config', message)
-        }
-        config = parsed.data
-      }
-
-      const refs = body.config !== undefined ? sourceRefsFor(widget.type, config) : undefined
-      const now = deps.now()
-      const { updated, newSourceIds } = await db.transaction(async (tx) => {
-        const updated = onlyRow(
-          await tx
-            .update(widgets)
-            .set({
-              title: body.title ?? widget.title,
-              color: body.color === undefined ? widget.color : body.color,
-              config,
-              updatedAt: now,
-            })
-            .where(eq(widgets.id, widget.id))
-            .returning(),
-        )
-        const linked = refs
-          ? await linkWidgetSources(tx, widget.id, refs, now)
-          : { newSourceIds: [] }
-        return { updated, newSourceIds: linked.newSourceIds }
-      })
-
-      await refreshSourcesNow(deps, newSourceIds)
-      return c.json(toWidgetDto(updated))
+      const widget = await requireWidget(db, c.get('userId'), c.req.param('id'))
+      return c.json(await updateWidget(deps, widget, c.req.valid('json')))
     })
 
     .delete('/:id', async (c) => {
-      const widget = await owned(c.get('userId'), c.req.param('id'))
+      const widget = await requireWidget(db, c.get('userId'), c.req.param('id'))
       await db.delete(widgets).where(eq(widgets.id, widget.id))
       return c.body(null, 204)
     })
 
     .get('/:id/data', async (c) => {
       const userId = c.get('userId')
-      const widget = await owned(userId, c.req.param('id'))
-
-      if (widget.type === 'weather') {
-        const config = weatherConfigSchema.parse(widget.config)
-        const { snapshot, fetchedAt, stale } = await getWeather(
-          { db, http: deps.fetchContext.http, now: deps.now },
-          config.location,
-          config.units,
-        )
-        return c.json({
-          widget: { id: widget.id, type: widget.type, title: widget.title },
-          location: config.location,
-          units: config.units,
-          ...snapshot,
-          fetchedAt,
-          stale,
-          attribution: WEATHER_ATTRIBUTION,
-        })
-      }
-
-      if (widget.type !== 'feed' && widget.type !== 'youtube') {
-        throw new ApiError(
-          422,
-          'widget_type_unavailable',
-          `The "${widget.type}" widget is not available yet`,
-        )
-      }
-
-      const config = widgetConfigSchemas[widget.type].parse(widget.config)
-      const labels = sourceLabels(widget.type, config)
-      const sourceRows = await db
-        .select()
-        .from(sources)
-        .where(inArray(sources.id, await sourceIdsOf(widget.id)))
-      const byId = new Map(sourceRows.map((row) => [row.id, row]))
-
-      // A feed shares its limit across all its sources; a YouTube widget applies it per channel.
-      const sourceIds = [...byId.keys()]
-      const rows =
-        widget.type === 'youtube'
-          ? await latestItemsPerSource(userId, sourceIds, config.limit)
-          : await latestItems(userId, sourceIds, config.limit)
-
-      return c.json({
-        widget: { id: widget.id, type: widget.type, title: widget.title },
-        items: rows.map(({ seenAt, readAt, ...row }) => {
-          const source = byId.get(row.sourceId)
-          return {
-            ...row,
-            sourceName: (source && labels.get(source.key)) || source?.title || null,
-            sourceUrl: source?.siteUrl ?? null,
-            sourceIconUrl: source?.faviconUrl ?? null,
-            seen: seenAt !== null,
-            read: readAt !== null,
-          }
-        }),
-        sources: sourceRows.map((source) => ({
-          id: source.id,
-          title: (labels.get(source.key) ?? source.title) || null,
-          siteUrl: source.siteUrl,
-          iconUrl: source.faviconUrl,
-          lastFetchedAt: source.lastFetchedAt,
-          error: source.errorCount > 0 ? (source.lastStatus ?? 'error') : null,
-        })),
-      })
+      const widget = await requireWidget(db, userId, c.req.param('id'))
+      if (widget.type === 'weather') return c.json(await weatherData(deps, widget))
+      return c.json(await feedData(deps, userId, widget))
     })
 
     .post('/:id/refresh', async (c) => {
-      const widget = await owned(c.get('userId'), c.req.param('id'))
-      return c.json(await refreshSourcesNow(deps, await sourceIdsOf(widget.id)))
+      const widget = await requireWidget(db, c.get('userId'), c.req.param('id'))
+      return c.json(await refreshSourcesNow(deps, await sourceIdsOf(db, widget.id)))
     })
 }

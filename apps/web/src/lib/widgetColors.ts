@@ -12,5 +12,5 @@ export const WIDGET_COLOR_LABELS: Record<WidgetColor, string> = {
   pink: 'Pink',
 }
 
-export const colorLabel = (color: WidgetColor | null) =>
+export const colorLabel = (color: WidgetColor | null): string =>
   color ? WIDGET_COLOR_LABELS[color] : 'Default'

@@ -18,7 +18,7 @@ watch(
 </script>
 
 <template>
-  <div class="min-h-screen px-4 py-4 medium:px-6 medium:py-5">
+  <div class="min-h-screen p-4 medium:p-6">
     <RouterView />
   </div>
 </template>

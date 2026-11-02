@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { ProviderError } from '../providers/errors'
-import { createTestApp } from '../test/helpers'
+import { createTestApp, errorOf, type TestApp } from '../test/helpers'
+
+const resolve = (t: TestApp, kind: 'rss' | 'youtube' | 'royalroad', input: string) =>
+  t.client.sources.resolve.$post({ json: { kind, input } })
 
 describe('POST /sources/resolve', () => {
   it('returns the canonical source for what the user typed', async () => {
@@ -11,10 +14,12 @@ describe('POST /sources/resolve', () => {
         title: 'Example',
       }),
     })
-    const res = await t.call('POST', '/sources/resolve', { kind: 'rss', input: 'example.com' })
-    expect(res).toEqual({
-      status: 200,
-      body: { kind: 'rss', key: 'https://example.com/feed.xml', title: 'Example' },
+    const res = await resolve(t, 'rss', 'example.com')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      kind: 'rss',
+      key: 'https://example.com/feed.xml',
+      title: 'Example',
     })
   })
 
@@ -24,9 +29,9 @@ describe('POST /sources/resolve', () => {
         throw new ProviderError('No RSS or Atom feed found at this address')
       },
     })
-    const res = await t.call('POST', '/sources/resolve', { kind: 'rss', input: 'example.com' })
+    const res = await resolve(t, 'rss', 'example.com')
     expect(res.status).toBe(422)
-    expect(res.body.error).toEqual({
+    expect((await errorOf(res)).error).toEqual({
       code: 'source_error',
       message: 'No RSS or Atom feed found at this address',
     })
@@ -34,19 +39,17 @@ describe('POST /sources/resolve', () => {
 
   it('says when a kind has no provider yet', async () => {
     const t = await createTestApp()
-    const res = await t.call('POST', '/sources/resolve', { kind: 'royalroad', input: '12345' })
+    const res = await resolve(t, 'royalroad', '12345')
     expect(res.status).toBe(422)
-    expect(res.body.error.code).toBe('source_kind_unavailable')
+    expect((await errorOf(res)).error.code).toBe('source_kind_unavailable')
   })
 
   it('validates the request', async () => {
     const t = await createTestApp()
-    expect((await t.call('POST', '/sources/resolve', { kind: 'rss' })).status).toBe(400)
-    expect((await t.call('POST', '/sources/resolve', { kind: 'nope', input: 'x' })).status).toBe(
+    expect((await t.send('POST', '/sources/resolve', { kind: 'rss' })).status).toBe(400)
+    expect((await t.send('POST', '/sources/resolve', { kind: 'nope', input: 'x' })).status).toBe(
       400,
     )
-    expect((await t.call('POST', '/sources/resolve', { kind: 'rss', input: '  ' })).status).toBe(
-      400,
-    )
+    expect((await resolve(t, 'rss', '  ')).status).toBe(400)
   })
 })

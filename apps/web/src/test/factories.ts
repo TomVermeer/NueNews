@@ -34,7 +34,7 @@ export function feedData(items: FeedItem[], overrides: Partial<FeedData> = {}): 
       },
     ],
     ...overrides,
-  } as FeedData
+  }
 }
 
 export function weatherData(overrides: Partial<WeatherData> = {}): WeatherData {
@@ -54,7 +54,7 @@ export function weatherData(overrides: Partial<WeatherData> = {}): WeatherData {
     stale: false,
     attribution: 'Data from MET Norway',
     ...overrides,
-  } as WeatherData
+  }
 }
 
 export function widget(id: string, overrides: Partial<WidgetDto> = {}): WidgetDto {
@@ -76,5 +76,5 @@ export function widget(id: string, overrides: Partial<WidgetDto> = {}): WidgetDt
     createdAt: '2026-02-01T10:00:00.000Z',
     updatedAt: '2026-02-01T10:00:00.000Z',
     ...overrides,
-  } as WidgetDto
+  }
 }

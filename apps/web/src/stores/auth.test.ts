@@ -66,7 +66,7 @@ describe('auth store with a login configured', () => {
   it('reports wrong credentials in plain words, and stays signed out', async () => {
     const fake = createFakeAuthClient()
     fake.signInWithPassword.mockResolvedValueOnce({
-      data: { session: null as never },
+      data: { session: null },
       error: { message: 'Invalid login credentials' },
     })
     hoisted.client = fake.client
@@ -82,7 +82,7 @@ describe('auth store with a login configured', () => {
   it('does not repeat provider messages it does not understand', async () => {
     const fake = createFakeAuthClient()
     fake.signInWithPassword.mockResolvedValueOnce({
-      data: { session: null as never },
+      data: { session: null },
       error: { message: 'internal gotrue detail' },
     })
     hoisted.client = fake.client

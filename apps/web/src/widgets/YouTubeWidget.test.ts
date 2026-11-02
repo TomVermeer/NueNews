@@ -4,12 +4,16 @@ import { feedData, feedItem } from '../test/factories'
 import YouTubeWidget from './YouTubeWidget.vue'
 
 const NOW = new Date('2026-02-01T12:00:00Z')
-const render = (props: Record<string, unknown>) =>
-  mount(YouTubeWidget, { props: { now: NOW, ...props } as never })
+type Props = InstanceType<typeof YouTubeWidget>['$props']
+
+const render = (props: Omit<Props, 'now'>) =>
+  mount(YouTubeWidget, { props: { now: NOW, ...props } })
 
 describe('YouTubeWidget', () => {
-  it('shows a message when there are no videos', () => {
-    expect(render({ data: feedData([]) }).text()).toContain('No videos yet')
+  it('shows a message with an icon when there are no videos', () => {
+    const wrapper = render({ data: feedData([]) })
+    expect(wrapper.text()).toContain('No videos yet')
+    expect(wrapper.find('svg[aria-hidden="true"]').exists()).toBe(true)
   })
 
   it('shows thumbnail, title, channel and age, linking out to YouTube', () => {
@@ -119,5 +123,31 @@ describe('YouTubeWidget', () => {
       }),
     })
     expect(wrapper.get('[role="status"]').text()).toContain('Some channel: error: HTTP 404')
+    expect(wrapper.get('[role="status"]').classes()).toContain('mt-3')
+  })
+
+  it('names a failing channel without a title "A channel"', () => {
+    const wrapper = render({
+      data: feedData([], {
+        sources: [
+          { id: 's', title: null, siteUrl: null, iconUrl: null, lastFetchedAt: null, error: 'x' },
+        ],
+      }),
+    })
+    expect(wrapper.get('[role="status"]').text()).toBe('A channel: x')
+  })
+
+  it('falls back to the source title, then "Unknown channel", for the channel name', () => {
+    const source = { siteUrl: null, iconUrl: null, lastFetchedAt: null, error: null }
+    const wrapper = render({
+      data: feedData(
+        [
+          feedItem(1, { sourceId: 'a', sourceName: null }),
+          feedItem(2, { sourceId: 'b', sourceName: null }),
+        ],
+        { sources: [{ id: 'a', title: 'From source', ...source }] },
+      ),
+    })
+    expect(wrapper.findAll('h3').map((h3) => h3.text())).toEqual(['From source', 'Unknown channel'])
   })
 })

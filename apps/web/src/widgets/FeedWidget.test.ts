@@ -5,8 +5,10 @@ import FeedWidget from './FeedWidget.vue'
 
 const NOW = new Date('2026-02-01T12:00:00Z')
 
-function render(props: Record<string, unknown>) {
-  return mount(FeedWidget, { props: { now: NOW, ...props } as never })
+type Props = InstanceType<typeof FeedWidget>['$props']
+
+function render(props: Omit<Props, 'now'>) {
+  return mount(FeedWidget, { props: { now: NOW, ...props } })
 }
 
 describe('FeedWidget', () => {
@@ -57,6 +59,31 @@ describe('FeedWidget', () => {
       const none = render({ data: feedData([feedItem(1, { imageUrl: null })]) })
       expect(none.find('img').exists()).toBe(false)
     })
+
+    it('keeps rows aligned with a placeholder when other items have an image', () => {
+      const mixed = render({ data: feedData([feedItem(1), feedItem(2, { imageUrl: null })]) })
+      expect(mixed.findAll('img')).toHaveLength(1)
+      expect(mixed.findAll('[data-testid="thumbnail-placeholder"]')).toHaveLength(1)
+
+      const off = render({
+        data: feedData([feedItem(1), feedItem(2, { imageUrl: null })]),
+        config: { showImages: false },
+      })
+      expect(off.find('[data-testid="thumbnail-placeholder"]').exists()).toBe(false)
+    })
+
+    it('leaves out the image column for a feed without any images', () => {
+      const none = render({
+        data: feedData([feedItem(1, { imageUrl: null }), feedItem(2, { imageUrl: null })]),
+      })
+      expect(none.find('[data-testid="thumbnail-placeholder"]').exists()).toBe(false)
+    })
+  })
+
+  it('shows an icon with the empty state', () => {
+    const wrapper = render({ data: feedData([]) })
+    expect(wrapper.text()).toContain('No items yet')
+    expect(wrapper.find('svg[aria-hidden="true"]').exists()).toBe(true)
   })
 
   describe('excerpt modes', () => {
@@ -125,5 +152,17 @@ describe('FeedWidget', () => {
     const warnings = wrapper.findAll('[role="status"]')
     expect(warnings).toHaveLength(1)
     expect(warnings[0]!.text()).toContain('Broken feed: error: HTTP 500')
+    expect(warnings[0]!.classes()).toContain('mt-2')
+  })
+
+  it('names a failing source without a title "A source"', () => {
+    const wrapper = render({
+      data: feedData([], {
+        sources: [
+          { id: 's', title: null, siteUrl: null, iconUrl: null, lastFetchedAt: null, error: 'x' },
+        ],
+      }),
+    })
+    expect(wrapper.get('[role="status"]').text()).toBe('A source: x')
   })
 })

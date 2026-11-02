@@ -126,8 +126,9 @@ type LookupFn = (
  * made, it also stops DNS rebinding (a name that resolves to a public address when checked and a
  * private one when used).
  */
+// `dns.lookup` is overloaded; LookupFn is its `all: true` form, the only one called here.
 export function createGuardedLookup(resolve: LookupFn = dns.lookup as LookupFn) {
-  return (hostname: string, options: dns.LookupOptions, callback: LookupCallback) => {
+  return (hostname: string, options: dns.LookupOptions, callback: LookupCallback): void => {
     resolve(hostname, { ...options, all: true }, (err, addresses) => {
       if (err) return callback(err)
       const blocked = addresses.find((a) => isPrivateAddress(a.address))

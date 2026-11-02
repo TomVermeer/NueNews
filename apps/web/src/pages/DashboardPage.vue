@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { LayoutDashboard, LayoutGrid, TriangleAlert } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -15,6 +16,7 @@ import DashboardGrid from '../components/DashboardGrid.vue'
 import TopBar from '../components/TopBar.vue'
 import { useCompactLayout } from '../composables/useCompactLayout'
 import { useLayoutDraft } from '../composables/useLayoutDraft'
+import { useWidgetRefresh } from '../composables/useWidgetRefresh'
 import { useAuthStore } from '../stores/auth'
 import { useEditorStore } from '../stores/editor'
 
@@ -55,27 +57,17 @@ const draft = useLayoutDraft(widgets, editing)
 const dashboardMutations = useDashboardMutations()
 const widgetMutations = useWidgetMutations()
 
-const editingWidget = computed(() =>
-  panel.value.mode === 'edit'
-    ? widgets.value.find((w) => w.id === (panel.value as { widgetId: string }).widgetId)
-    : undefined,
-)
+const editingWidget = computed(() => {
+  const current = panel.value
+  if (current.mode !== 'edit') return undefined
+  return widgets.value.find((widget) => widget.id === current.widgetId)
+})
 
-const updatedAt = ref<Date | null>(null)
-watch(
-  () => dashboardQuery.dataUpdatedAt.value,
-  (time) => {
-    if (time && !updatedAt.value) updatedAt.value = new Date(time)
-  },
-)
-
-const refreshingIds = ref<string[]>([])
-async function refreshWidgets(list: WidgetDto[]) {
-  refreshingIds.value = [...refreshingIds.value, ...list.map((w) => w.id)]
-  await Promise.allSettled(list.map((w) => widgetMutations.refresh.mutateAsync(w.id)))
-  refreshingIds.value = refreshingIds.value.filter((id) => !list.some((w) => w.id === id))
-  updatedAt.value = new Date()
-}
+const {
+  refreshingIds,
+  updatedAt,
+  refresh: refreshWidgets,
+} = useWidgetRefresh(() => dashboardQuery.dataUpdatedAt.value)
 
 // On a narrow screen there is no edit mode, so adding a widget stays in view mode.
 const addWidget = () => editor.openAddPanel({ keepViewMode: compact.value })
@@ -96,14 +88,9 @@ function cancel() {
   editor.stopEditing()
 }
 
-function renameWidget(widget: WidgetDto, title: string) {
+function updateWidget(widget: WidgetDto, patch: { title?: string; color?: WidgetColor | null }) {
   if (!activeId.value) return
-  widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, title })
-}
-
-function recolorWidget(widget: WidgetDto, color: WidgetColor | null) {
-  if (!activeId.value) return
-  widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, color })
+  widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, ...patch })
 }
 
 async function createDashboard(name: string) {
@@ -117,7 +104,7 @@ async function deleteDashboard(id: string) {
   void router.replace({ name: 'home' })
 }
 
-const firstName = ref('Home')
+const firstDashboardName = ref('Home')
 </script>
 
 <template>
@@ -134,17 +121,27 @@ const firstName = ref('Home')
     class="mx-auto max-w-sm py-20 text-center"
     role="alert"
   >
+    <TriangleAlert class="mx-auto mb-4 size-6 text-ink-muted" aria-hidden="true" />
     <p class="text-sm text-ink-muted">Could not load your dashboards. Is the server running?</p>
     <button type="button" class="btn mt-4" @click="dashboardsQuery.refetch()">Try again</button>
   </div>
 
   <div v-else-if="dashboards.length === 0" class="mx-auto max-w-sm py-24 text-center">
-    <h1 class="text-lg font-medium">Start your first dashboard</h1>
+    <LayoutDashboard class="mx-auto mb-4 size-6 text-ink-muted" aria-hidden="true" />
+    <h1 class="text-[22px]/7">Start your first dashboard</h1>
     <p class="mt-2 text-sm text-ink-muted">
       A dashboard holds the widgets you arrange: feeds, videos and weather.
     </p>
-    <form class="mt-6 flex gap-2" @submit.prevent="createDashboard(firstName.trim() || 'Home')">
-      <input v-model="firstName" class="field" aria-label="Dashboard name" maxlength="60" />
+    <form
+      class="mt-6 flex gap-2"
+      @submit.prevent="createDashboard(firstDashboardName.trim() || 'Home')"
+    >
+      <input
+        v-model="firstDashboardName"
+        class="field"
+        aria-label="Dashboard name"
+        maxlength="60"
+      />
       <button type="submit" class="btn btn-primary shrink-0">Create dashboard</button>
     </form>
   </div>
@@ -171,19 +168,18 @@ const firstName = ref('Home')
       @delete-dashboard="deleteDashboard"
     />
 
-    <p
-      v-if="dashboardQuery.isError.value"
-      class="py-10 text-center text-sm text-ink-muted"
-      role="alert"
-    >
-      Could not load this dashboard.
-    </p>
+    <div v-if="dashboardQuery.isError.value" class="py-10 text-center" role="alert">
+      <TriangleAlert class="mx-auto mb-4 size-6 text-ink-muted" aria-hidden="true" />
+      <p class="text-sm text-ink-muted">Could not load this dashboard.</p>
+    </div>
 
     <div
       v-else-if="dashboardQuery.isSuccess.value && widgets.length === 0 && !editing"
       class="mx-auto max-w-sm py-24 text-center"
+      data-testid="empty-dashboard"
     >
-      <h1 class="text-lg font-medium">This dashboard is empty</h1>
+      <LayoutGrid class="mx-auto mb-4 size-6 text-ink-muted" aria-hidden="true" />
+      <h1 class="text-[22px]/7">This dashboard is empty</h1>
       <p class="mt-2 text-sm text-ink-muted">Add a feed, a YouTube channel or the weather.</p>
       <button type="button" class="btn btn-primary mt-6" @click="addWidget">Add a widget</button>
     </div>
@@ -198,8 +194,8 @@ const firstName = ref('Home')
       @refresh="(widget) => refreshWidgets([widget])"
       @settings="(widget) => editor.openSettings(widget.id)"
       @remove="(widget) => draft.remove(widget.id)"
-      @rename="renameWidget"
-      @color="recolorWidget"
+      @rename="(widget, title) => updateWidget(widget, { title })"
+      @color="(widget, color) => updateWidget(widget, { color })"
     />
 
     <AddWidgetPanel

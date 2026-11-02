@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Check, LayoutDashboard, LogOut, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
-import { nextTick, ref } from 'vue'
+import { LayoutDashboard, LogOut, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { DashboardSummary } from '../api/types'
 import { timeAgo } from '../lib/time'
+import DashboardNameForm from './DashboardNameForm.vue'
 
 const props = defineProps<{
   dashboards: DashboardSummary[]
@@ -31,60 +32,34 @@ const emit = defineEmits<{
   'sign-out': []
 }>()
 
-const creating = ref(false)
-const renaming = ref(false)
-const draftName = ref('')
-const nameInput = ref<HTMLInputElement | null>(null)
+/** Which name form is open: a new dashboard's, the active dashboard's, or none. */
+const naming = ref<'create' | 'rename' | null>(null)
 
-// A function ref, because one of the inputs lives inside a v-for (where a plain ref becomes an array).
-function setNameInput(el: unknown) {
-  nameInput.value = el as HTMLInputElement | null
-}
+const saveLabel = computed(() => {
+  if (props.saving) return 'Saving…'
+  return props.dirty ? 'Save layout' : 'Done'
+})
 
-async function focusName() {
-  await nextTick()
-  nameInput.value?.focus()
-}
+const activeName = computed(() => props.dashboards.find((d) => d.id === props.activeId)?.name)
 
-function startCreate() {
-  draftName.value = ''
-  renaming.value = false
-  creating.value = true
-  void focusName()
-}
-
-function startRename() {
-  draftName.value = props.dashboards.find((d) => d.id === props.activeId)?.name ?? ''
-  creating.value = false
-  renaming.value = true
-  void focusName()
-}
-
-function cancelNaming() {
-  creating.value = false
-  renaming.value = false
-}
-
-function commitName() {
-  const name = draftName.value.trim()
-  if (!name) return cancelNaming()
-  if (creating.value) emit('create-dashboard', name)
+function commitName(name: string) {
+  if (naming.value === 'create') emit('create-dashboard', name)
   else if (props.activeId) emit('rename-dashboard', props.activeId, name)
-  cancelNaming()
+  naming.value = null
 }
 
 function confirmDelete() {
-  const name = props.dashboards.find((d) => d.id === props.activeId)?.name ?? 'this dashboard'
-  if (window.confirm(`Delete "${name}" and all of its widgets?`)) {
-    emit('delete-dashboard', props.activeId!)
-  }
+  const id = props.activeId
+  if (!id) return
+  const name = activeName.value ?? 'this dashboard'
+  if (window.confirm(`Delete "${name}" and all of its widgets?`)) emit('delete-dashboard', id)
 }
 </script>
 
 <template>
   <!-- On a narrow screen the tabs drop to their own row below the brand and the actions. -->
   <header class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 medium:mb-6">
-    <span class="flex items-center gap-2 text-[15px] font-medium">
+    <span class="flex items-center gap-2 text-base/6 font-medium">
       <LayoutDashboard class="size-5 text-accent" aria-hidden="true" />
       NueNews
     </span>
@@ -94,60 +69,54 @@ function confirmDelete() {
       aria-label="Dashboards"
     >
       <template v-for="dashboard in dashboards" :key="dashboard.id">
-        <form
-          v-if="renaming && dashboard.id === activeId"
-          class="flex items-center gap-1"
-          @submit.prevent="commitName"
-        >
-          <input
-            :ref="setNameInput"
-            v-model="draftName"
-            class="field !w-36 !py-1"
-            aria-label="Dashboard name"
-            maxlength="60"
-            @keydown.esc="cancelNaming"
-          />
-          <button type="submit" class="icon-btn" aria-label="Save name">
-            <Check class="size-4" aria-hidden="true" />
-          </button>
-        </form>
+        <DashboardNameForm
+          v-if="naming === 'rename' && dashboard.id === activeId"
+          label="Dashboard name"
+          submit-label="Save name"
+          :initial-name="activeName"
+          @submit="commitName"
+          @cancel="naming = null"
+        />
         <RouterLink
           v-else
           :to="{ name: 'dashboard', params: { id: dashboard.id } }"
-          class="tap-area shrink-0 rounded-lg px-3 py-1.5 text-sm whitespace-nowrap transition-colors"
+          class="touch-target shrink-0 rounded-lg px-3 py-1.5 text-sm whitespace-nowrap transition-colors"
           :class="
             dashboard.id === activeId
               ? 'bg-line text-ink'
-              : 'text-ink-muted hover:bg-line/60 hover:text-ink'
+              : 'text-ink-muted hover:bg-card-high hover:text-ink'
           "
           :aria-current="dashboard.id === activeId ? 'page' : undefined"
           >{{ dashboard.name }}</RouterLink
         >
       </template>
 
-      <form v-if="creating" class="flex items-center gap-1" @submit.prevent="commitName">
-        <input
-          :ref="setNameInput"
-          v-model="draftName"
-          class="field !w-36 !py-1"
-          placeholder="Dashboard name"
-          aria-label="New dashboard name"
-          maxlength="60"
-          @keydown.esc="cancelNaming"
-        />
-        <button type="submit" class="icon-btn" aria-label="Create dashboard">
-          <Check class="size-4" aria-hidden="true" />
-        </button>
-        <button type="button" class="icon-btn" aria-label="Cancel" @click="cancelNaming">
-          <X class="size-4" aria-hidden="true" />
-        </button>
-      </form>
-      <button v-else type="button" class="icon-btn" aria-label="New dashboard" @click="startCreate">
+      <DashboardNameForm
+        v-if="naming === 'create'"
+        label="New dashboard name"
+        submit-label="Create dashboard"
+        placeholder="Dashboard name"
+        cancelable
+        @submit="commitName"
+        @cancel="naming = null"
+      />
+      <button
+        v-else
+        type="button"
+        class="icon-btn"
+        aria-label="New dashboard"
+        @click="naming = 'create'"
+      >
         <Plus class="size-4" aria-hidden="true" />
       </button>
 
-      <template v-if="editing && activeId && !renaming">
-        <button type="button" class="icon-btn" aria-label="Rename dashboard" @click="startRename">
+      <template v-if="editing && activeId && naming !== 'rename'">
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label="Rename dashboard"
+          @click="naming = 'rename'"
+        >
           <Pencil class="size-4" aria-hidden="true" />
         </button>
         <button type="button" class="icon-btn" aria-label="Delete dashboard" @click="confirmDelete">
@@ -162,14 +131,8 @@ function confirmDelete() {
           <Plus class="size-4" aria-hidden="true" /> Add widget
         </button>
         <button type="button" class="btn btn-ghost" @click="emit('cancel')">Cancel</button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="saving"
-          :aria-label="dirty ? 'Save layout' : 'Done'"
-          @click="emit('save')"
-        >
-          {{ saving ? 'Saving…' : dirty ? 'Save layout' : 'Done' }}
+        <button type="button" class="btn btn-primary" :disabled="saving" @click="emit('save')">
+          {{ saveLabel }}
         </button>
       </template>
       <template v-else>

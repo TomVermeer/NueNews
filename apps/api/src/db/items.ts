@@ -7,7 +7,7 @@ import { items } from './schema'
 export async function upsertItems(
   db: Db,
   sourceId: string,
-  incoming: NormalizedItem[],
+  incoming: readonly NormalizedItem[],
   now = new Date(),
 ): Promise<void> {
   if (incoming.length === 0) return
@@ -42,8 +42,14 @@ export async function upsertItems(
     })
 }
 
+type ItemRow = typeof items.$inferSelect
+
 /** Newest items across the given sources. */
-export async function listLatestItems(db: Db, sourceIds: string[], limit: number) {
+export async function listLatestItems(
+  db: Db,
+  sourceIds: string[],
+  limit: number,
+): Promise<ItemRow[]> {
   if (sourceIds.length === 0) return []
   return db
     .select()

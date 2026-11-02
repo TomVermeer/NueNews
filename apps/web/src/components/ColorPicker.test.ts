@@ -1,9 +1,10 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { WIDGET_COLORS } from '@nuenews/shared'
+import { WIDGET_COLORS, type WidgetColor } from '@nuenews/shared'
 import ColorPicker from './ColorPicker.vue'
+import { inputOf } from '../test/dom'
 
-const render = (modelValue: string | null) => mount(ColorPicker, { props: { modelValue } as never })
+const render = (modelValue: WidgetColor | null) => mount(ColorPicker, { props: { modelValue } })
 
 describe('ColorPicker', () => {
   it('offers the default and every palette color as radio buttons', () => {
@@ -17,13 +18,11 @@ describe('ColorPicker', () => {
 
   it('marks the current color as selected', () => {
     const blue = render('blue').findAll('input[type="radio"]')
-    expect(blue.filter((r) => (r.element as HTMLInputElement).checked)).toHaveLength(1)
     expect(
-      (render('blue').get('input[aria-label="Blue"]').element as HTMLInputElement).checked,
-    ).toBe(true)
-    expect(
-      (render(null).get('input[aria-label="Default"]').element as HTMLInputElement).checked,
-    ).toBe(true)
+      blue.filter((radio) => radio.element instanceof HTMLInputElement && radio.element.checked),
+    ).toHaveLength(1)
+    expect(inputOf(render('blue'), 'input[aria-label="Blue"]').checked).toBe(true)
+    expect(inputOf(render(null), 'input[aria-label="Default"]').checked).toBe(true)
   })
 
   it('reports the chosen color, and null for the default', async () => {

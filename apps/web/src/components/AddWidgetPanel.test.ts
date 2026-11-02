@@ -4,6 +4,7 @@ import { fakeApi } from '../test/fakeApi'
 import { widget } from '../test/factories'
 import { mountApp } from '../test/mount'
 import AddWidgetPanel from './AddWidgetPanel.vue'
+import { getButton, inputOf } from '../test/dom'
 
 vi.mock('../api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/client')>()
@@ -12,9 +13,6 @@ vi.mock('../api/client', async (importOriginal) => {
 })
 
 beforeEach(() => fakeApi.reset())
-
-const button = (wrapper: { findAll: (s: string) => any[] }, text: string) =>
-  wrapper.findAll('button').find((b) => b.text().includes(text))!
 
 describe('AddWidgetPanel (adding)', () => {
   it('starts with the choice of widget types', async () => {
@@ -36,7 +34,7 @@ describe('AddWidgetPanel (adding)', () => {
 
   it('shows the form of the chosen type and can go back', async () => {
     const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
-    await button(wrapper, 'Weather').trigger('click')
+    await getButton(wrapper, 'Weather').trigger('click')
     expect(wrapper.get('h2').text()).toBe('Weather')
     expect(wrapper.find('#weather-search').exists()).toBe(true)
 
@@ -51,11 +49,11 @@ describe('AddWidgetPanel (adding)', () => {
     fakeApi.on('POST dashboards/:id/widgets', { status: 201, body: widget('new') })
     const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
 
-    await button(wrapper, 'Feed list').trigger('click')
+    await getButton(wrapper, 'Feed list').trigger('click')
     await wrapper.get('input[aria-label="Feed address 1"]').setValue('a.example')
-    await button(wrapper, 'Look up').trigger('click')
+    await getButton(wrapper, 'Look up').trigger('click')
     await flushPromises()
-    await button(wrapper, 'Add widget').trigger('click')
+    await getButton(wrapper, 'Add widget').trigger('click')
     await flushPromises()
 
     const [call] = fakeApi.callsTo('POST dashboards/:id/widgets')
@@ -68,10 +66,29 @@ describe('AddWidgetPanel (adding)', () => {
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 
+  it('shows progress on the save button while saving', async () => {
+    fakeApi.on('POST sources/resolve', {
+      body: { kind: 'rss', key: 'https://a.example/f', title: 'A' },
+    })
+    fakeApi.on('POST dashboards/:id/widgets', () => new Promise(() => {}))
+    const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
+
+    await getButton(wrapper, 'Feed list').trigger('click')
+    expect(wrapper.get('footer .btn-primary').text()).toBe('Add widget')
+    await wrapper.get('input[aria-label="Feed address 1"]').setValue('a.example')
+    await getButton(wrapper, 'Look up').trigger('click')
+    await flushPromises()
+    await getButton(wrapper, 'Add widget').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('footer .btn-primary').text()).toBe('Saving…')
+    expect(wrapper.get('footer .btn-primary').attributes('disabled')).toBeDefined()
+  })
+
   it('does not call the server while the form has problems', async () => {
     const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
-    await button(wrapper, 'Feed list').trigger('click')
-    await button(wrapper, 'Add widget').trigger('click')
+    await getButton(wrapper, 'Feed list').trigger('click')
+    await getButton(wrapper, 'Add widget').trigger('click')
     await flushPromises()
     expect(fakeApi.callsTo('POST dashboards/:id/widgets')).toHaveLength(0)
     expect(wrapper.emitted('close')).toBeUndefined()
@@ -88,11 +105,11 @@ describe('AddWidgetPanel (adding)', () => {
       },
     })
     const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
-    await button(wrapper, 'Feed list').trigger('click')
+    await getButton(wrapper, 'Feed list').trigger('click')
     await wrapper.get('input[aria-label="Feed address 1"]').setValue('a.example')
-    await button(wrapper, 'Look up').trigger('click')
+    await getButton(wrapper, 'Look up').trigger('click')
     await flushPromises()
-    await button(wrapper, 'Add widget').trigger('click')
+    await getButton(wrapper, 'Add widget').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('Private and local addresses are not allowed')
@@ -114,12 +131,12 @@ describe('AddWidgetPanel (color)', () => {
     fakeApi.on('POST dashboards/:id/widgets', { status: 201, body: widget('new') })
     const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
 
-    await button(wrapper, 'Feed list').trigger('click')
+    await getButton(wrapper, 'Feed list').trigger('click')
     await wrapper.get('input[aria-label="Feed address 1"]').setValue('a.example')
-    await button(wrapper, 'Look up').trigger('click')
+    await getButton(wrapper, 'Look up').trigger('click')
     await flushPromises()
     await wrapper.get('input[aria-label="Green"]').setValue(true)
-    await button(wrapper, 'Add widget').trigger('click')
+    await getButton(wrapper, 'Add widget').trigger('click')
     await flushPromises()
 
     const [call] = fakeApi.callsTo('POST dashboards/:id/widgets')
@@ -132,12 +149,10 @@ describe('AddWidgetPanel (color)', () => {
     const { wrapper } = await mountApp(AddWidgetPanel, {
       props: { dashboardId: 'd1', widget: tinted },
     })
-    expect((wrapper.get('input[aria-label="Purple"]').element as HTMLInputElement).checked).toBe(
-      true,
-    )
+    expect(inputOf(wrapper, 'input[aria-label="Purple"]').checked).toBe(true)
 
     await wrapper.get('input[aria-label="Default"]').setValue(true)
-    await button(wrapper, 'Save changes').trigger('click')
+    await getButton(wrapper, 'Save changes').trigger('click')
     await flushPromises()
 
     const [call] = fakeApi.callsTo('PATCH widgets/:id')
@@ -163,7 +178,7 @@ describe('AddWidgetPanel (editing)', () => {
       props: { dashboardId: 'd1', widget: existing },
     })
     expect(wrapper.get('h2').text()).toBe('Widget settings')
-    expect((wrapper.get('#feed-title').element as HTMLInputElement).value).toBe('My news')
+    expect(inputOf(wrapper, '#feed-title').value).toBe('My news')
     expect(wrapper.find('[aria-label="Back to widget types"]').exists()).toBe(false)
   })
 
@@ -174,7 +189,7 @@ describe('AddWidgetPanel (editing)', () => {
     })
 
     await wrapper.get('#feed-title').setValue('Renamed')
-    await button(wrapper, 'Save changes').trigger('click')
+    await getButton(wrapper, 'Save changes').trigger('click')
     await flushPromises()
 
     const [call] = fakeApi.callsTo('PATCH widgets/:id')

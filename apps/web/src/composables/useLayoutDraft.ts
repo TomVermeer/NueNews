@@ -11,6 +11,10 @@ export interface GridItemData {
 
 const toItem = (widget: WidgetDto): GridItemData => ({ i: widget.id, ...widget.layout })
 
+/** Whether a grid item has exactly this position and size. */
+const isAtLayout = (item: GridItemData, layout: WidgetDto['layout']): boolean =>
+  item.x === layout.x && item.y === layout.y && item.w === layout.w && item.h === layout.h
+
 /**
  * The layout the user is arranging in edit mode. Moves, resizes and removals stay in this draft
  * until they are saved; cancelling throws the draft away. Outside edit mode the draft always
@@ -25,22 +29,20 @@ export function useLayoutDraft(widgets: Ref<WidgetDto[]>, editing: Ref<boolean>)
     removed.value = []
   }
 
-  watch(
-    [widgets, editing],
-    () => {
-      if (!editing.value) return reset()
+  /** Keeps the draft, but picks up widgets added on the server meanwhile and drops ones that vanished. */
+  function mergeServerChanges() {
+    const known = new Set(layout.value.map((item) => item.i))
+    const onServer = new Set(widgets.value.map((widget) => widget.id))
+    const added = widgets.value
+      .filter((widget) => !known.has(widget.id) && !removed.value.includes(widget.id))
+      .map(toItem)
+    layout.value = [...layout.value.filter((item) => onServer.has(item.i)), ...added]
+    removed.value = removed.value.filter((id) => onServer.has(id))
+  }
 
-      // Editing: keep the draft, but pick up widgets added meanwhile and drop ones that vanished.
-      const known = new Set(layout.value.map((item) => item.i))
-      const onServer = new Set(widgets.value.map((widget) => widget.id))
-      const added = widgets.value
-        .filter((w) => !known.has(w.id) && !removed.value.includes(w.id))
-        .map(toItem)
-      layout.value = [...layout.value.filter((item) => onServer.has(item.i)), ...added]
-      removed.value = removed.value.filter((id) => onServer.has(id))
-    },
-    { immediate: true, deep: false },
-  )
+  watch([widgets, editing], () => (editing.value ? mergeServerChanges() : reset()), {
+    immediate: true,
+  })
 
   function remove(id: string) {
     if (!removed.value.includes(id)) removed.value = [...removed.value, id]
@@ -49,16 +51,10 @@ export function useLayoutDraft(widgets: Ref<WidgetDto[]>, editing: Ref<boolean>)
 
   const dirty = computed(() => {
     if (removed.value.length > 0) return true
-    const server = new Map(widgets.value.map((w) => [w.id, w.layout]))
+    const saved = new Map(widgets.value.map((widget) => [widget.id, widget.layout]))
     return layout.value.some((item) => {
-      const saved = server.get(item.i)
-      return (
-        !saved ||
-        saved.x !== item.x ||
-        saved.y !== item.y ||
-        saved.w !== item.w ||
-        saved.h !== item.h
-      )
+      const savedLayout = saved.get(item.i)
+      return !savedLayout || !isAtLayout(item, savedLayout)
     })
   })
 

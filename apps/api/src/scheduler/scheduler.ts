@@ -19,14 +19,13 @@ export interface Scheduler {
 
 /** Groups sources by the site they hit, so one site is never fetched from in parallel. */
 function hostOf(source: SourceRow): string {
-  if (source.kind === 'rss') {
-    try {
-      return new URL(source.key).host
-    } catch {
-      // fall through to the kind
-    }
+  if (source.kind !== 'rss') return source.kind
+  try {
+    return new URL(source.key).host
+  } catch {
+    // Not a valid URL: group it with the other sources of its kind.
+    return source.kind
   }
-  return source.kind
 }
 
 export function groupByHost(list: SourceRow[]): SourceRow[][] {
@@ -62,7 +61,11 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     running = true
     try {
       const started = now()
-      const due = await selectDueSources(deps.db, deps.registry, started, batchLimit)
+      const due = await selectDueSources(deps.db, {
+        registry: deps.registry,
+        now: started,
+        limit: batchLimit,
+      })
       const tasks = groupByHost(due).map((group) => async () => {
         for (const source of group) await refreshSource(deps, source, now())
       })

@@ -30,6 +30,7 @@ const GRID_GAP = 24
 
 const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, widget])))
 
+/** Each layout item with its widget. Items whose widget is gone would render empty, so skip them. */
 function withWidgets(items: readonly GridItemData[]) {
   return items.flatMap((item) => {
     const widget = byId.value.get(item.i)
@@ -37,7 +38,7 @@ function withWidgets(items: readonly GridItemData[]) {
   })
 }
 
-const placed = computed(() => withWidgets(layout.value))
+const cells = computed(() => withWidgets(layout.value))
 // Only the order of the saved layout is used; the stack never changes it.
 const stacked = computed(() => withWidgets(readingOrder(layout.value)))
 </script>
@@ -72,7 +73,7 @@ const stacked = computed(() => withWidgets(readingOrder(layout.value)))
     use-css-transforms
   >
     <GridItem
-      v-for="{ item, widget } in placed"
+      v-for="{ item, widget } in cells"
       :key="item.i"
       :i="item.i"
       :x="item.x"

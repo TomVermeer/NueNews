@@ -87,5 +87,5 @@ export const resolveSourceSchema = z.object({
 })
 
 export interface ApiErrorBody {
-  error: { code: string; message: string }
+  readonly error: { code: string; message: string }
 }

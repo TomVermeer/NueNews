@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { Plus, X } from 'lucide-vue-next'
-import { computed, reactive, ref, toRef } from 'vue'
-import type { YouTubeConfig } from '@nuenews/shared'
+import { computed, reactive, toRef } from 'vue'
+import { youtubeConfigSchema, type YouTubeConfig } from '@nuenews/shared'
 import { useAutoTitle } from '../../composables/useAutoTitle'
+import { useFormSubmit } from '../../composables/useFormSubmit'
 import { suggestTitle } from '../../lib/titles'
-import ResolveInput from './ResolveInput.vue'
+import ResolveList from './ResolveList.vue'
+import TitleField from './TitleField.vue'
+import { labelOf, newSourceRow, resolvedRows, rowNames } from './sourceRows'
+import ErrorMessage from '../ErrorMessage.vue'
 
 const props = defineProps<{
   initial?: { title: string; config: Partial<YouTubeConfig> }
@@ -12,26 +15,23 @@ const props = defineProps<{
 
 const emit = defineEmits<{ submit: [value: { title: string; config: YouTubeConfig }] }>()
 
+const DEFAULT_LIMIT = youtubeConfigSchema.shape.limit.parse(undefined)
+
 const form = reactive({
   title: props.initial?.title ?? 'YouTube',
-  channels: (props.initial?.config.channels ?? [{ input: '' }]).map((c) => ({
-    input: c.input,
-    label: c.label ?? '',
-    name: '',
-  })),
-  limit: props.initial?.config.limit ?? 3,
+  channels: (props.initial?.config.channels ?? [{ input: '' }]).map((channel) =>
+    newSourceRow(channel.input, channel.label),
+  ),
+  limit: props.initial?.config.limit ?? DEFAULT_LIMIT,
 })
 
 const autoTitle = useAutoTitle(
   toRef(form, 'title'),
-  computed(() =>
-    suggestTitle(form.channels.map((c) => c.label.trim() || c.name).filter((name) => name)),
-  ),
+  computed(() => suggestTitle(rowNames(form.channels))),
   { auto: !props.initial },
 )
 
-const attempted = ref(false)
-const resolved = computed(() => form.channels.filter((c) => c.input))
+const resolved = computed(() => resolvedRows(form.channels))
 const problem = computed(() => {
   if (!form.title.trim()) return 'Give the widget a title'
   if (resolved.value.length === 0) return 'Add at least one channel and look it up'
@@ -41,77 +41,31 @@ const problem = computed(() => {
   return ''
 })
 
-function submit() {
-  attempted.value = true
-  if (problem.value) return
+const { shownProblem, submit } = useFormSubmit(problem, () =>
   emit('submit', {
     title: form.title.trim(),
     config: {
-      channels: resolved.value.map((c) => ({
-        input: c.input,
-        ...(c.label.trim() ? { label: c.label.trim() } : {}),
-      })),
+      channels: resolved.value.map((channel) => ({ input: channel.value, ...labelOf(channel) })),
       limit: form.limit,
     },
-  })
-}
+  }),
+)
 
 defineExpose({ submit })
 </script>
 
 <template>
   <form class="space-y-4" @submit.prevent="submit">
-    <div>
-      <label class="field-label" for="yt-title">Title</label>
-      <input
-        id="yt-title"
-        v-model="form.title"
-        class="field"
-        maxlength="80"
-        @input="autoTitle.markEdited()"
-      />
-    </div>
+    <TitleField id="yt-title" v-model="form.title" @edit="autoTitle.markEdited()" />
 
-    <fieldset>
-      <legend class="field-label">Channels</legend>
-      <ul class="space-y-3">
-        <li v-for="(channel, index) in form.channels" :key="index" class="flex items-start gap-2">
-          <div class="min-w-0 flex-1 space-y-2">
-            <ResolveInput
-              v-model="channel.input"
-              kind="youtube"
-              :label="`Channel ${index + 1}`"
-              placeholder="@handle, channel address or channel ID"
-              @resolved="(result) => (channel.name = result.title ?? '')"
-            />
-            <input
-              v-if="channel.input"
-              v-model="channel.label"
-              class="field"
-              placeholder="Name (optional)"
-              :aria-label="`Name for channel ${index + 1}`"
-              maxlength="60"
-            />
-          </div>
-          <button
-            v-if="form.channels.length > 1"
-            type="button"
-            class="icon-btn mt-1"
-            :aria-label="`Remove channel ${index + 1}`"
-            @click="form.channels.splice(index, 1)"
-          >
-            <X class="size-4" aria-hidden="true" />
-          </button>
-        </li>
-      </ul>
-      <button
-        type="button"
-        class="btn btn-ghost mt-2 !px-0"
-        @click="form.channels.push({ input: '', label: '', name: '' })"
-      >
-        <Plus class="size-4" aria-hidden="true" /> Add another channel
-      </button>
-    </fieldset>
+    <ResolveList
+      v-model="form.channels"
+      kind="youtube"
+      legend="Channels"
+      noun="channel"
+      input-label="Channel"
+      placeholder="@handle, channel address or channel ID"
+    />
 
     <div class="w-44">
       <label class="field-label" for="yt-limit">Videos per channel</label>
@@ -125,7 +79,7 @@ defineExpose({ submit })
       />
     </div>
 
-    <p v-if="attempted && problem" class="text-xs text-amber-400" role="alert">{{ problem }}</p>
+    <ErrorMessage v-if="shownProblem" class="text-xs">{{ shownProblem }}</ErrorMessage>
     <button type="submit" class="sr-only">Save</button>
   </form>
 </template>

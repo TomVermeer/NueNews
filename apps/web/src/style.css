@@ -8,10 +8,18 @@
   --color-ink: #e6e8ee;
   --color-ink-muted: #8b92a5;
   --color-accent: #7c8cff;
-
   /* Material window size classes: compact < 600px, medium 600-839px, expanded >= 840px. */
   --breakpoint-medium: 600px;
   --breakpoint-expanded: 840px;
+  /* Material primary-container: the accent as a soft fill (avatar fallbacks, drop targets). */
+  --color-accent-container: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  /* The accent at half strength, for the dashed edit-mode border of a card. */
+  --color-accent-muted: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  /* Material surface-container-low: a recessed area inside a card, darker on any widget color. */
+  --color-card-low: color-mix(in srgb, var(--color-canvas) 60%, transparent);
+  /* Problems and confirmations. Both keep well over 4.5:1 on every card and widget color. */
+  --color-warning: #fbbf24;
+  --color-success: #34d399;
 }
 
 :root {
@@ -75,6 +83,22 @@ body {
   --widget-swatch: #dd6fb5;
 }
 
+/* Pads a visually smaller control's hit area out to 48 × 48px without changing its look. */
+@utility touch-target {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: 3rem;
+    min-height: 3rem;
+    transform: translate(-50%, -50%);
+  }
+}
+
 @layer components {
   .btn {
     @apply relative inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-ink transition-colors hover:bg-line focus-visible:outline-2 focus-visible:outline-accent;
@@ -86,7 +110,7 @@ body {
     @apply border-transparent text-ink-muted hover:text-ink;
   }
   .icon-btn {
-    @apply relative inline-flex size-7 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent;
+    @apply touch-target inline-flex size-7 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent;
   }
   .field {
     @apply w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none;
@@ -94,24 +118,14 @@ body {
   .field-label {
     @apply mb-1 block text-xs text-ink-muted;
   }
-  /* A tab or chip that is not a button but still needs a touch-sized hit area. */
-  .tap-area {
-    @apply relative;
-  }
-
-  /* Touch screens: controls keep their look but get a 48px hit area (an invisible ::after), and
-     fields use 16px text, because iOS Safari zooms the page in on focus below that. */
+  /* Touch screens: buttons get a 48px hit area (an invisible ::after; icon buttons and tabs use
+     touch-target), and fields use 16px text, because iOS Safari zooms the page in on focus
+     below that. */
   @media (pointer: coarse) {
-    .btn::after,
-    .tap-area::after {
+    .btn::after {
       content: '';
       position: absolute;
       inset: -0.5rem 0;
-    }
-    .icon-btn::after {
-      content: '';
-      position: absolute;
-      inset: -0.625rem;
     }
     .field {
       min-height: 3rem;
@@ -123,7 +137,7 @@ body {
 
 /* grid-layout-plus: placeholder shown while dragging, and the resize handle. */
 .vgl-item--placeholder {
-  @apply rounded-xl bg-accent/15;
+  @apply rounded-xl bg-accent-container;
 }
 .vgl-item__resizer {
   opacity: 0.6;

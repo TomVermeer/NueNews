@@ -25,11 +25,11 @@ const geocodingSchema = z.object({
 export function parseGeocoding(json: unknown): GeocodeResult[] {
   const parsed = geocodingSchema.safeParse(json)
   if (!parsed.success) throw new ProviderError('The location service returned an unexpected answer')
-  return (parsed.data.results ?? []).map((r) => ({
-    name: r.name,
-    region: r.admin1,
-    country: r.country,
-    lat: r.latitude,
-    lon: r.longitude,
+  return (parsed.data.results ?? []).map((result) => ({
+    name: result.name,
+    region: result.admin1,
+    country: result.country,
+    lat: result.latitude,
+    lon: result.longitude,
   }))
 }

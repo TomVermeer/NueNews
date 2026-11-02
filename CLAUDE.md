@@ -118,7 +118,7 @@ This repository is public. Never commit infrastructure details or personal data:
 
 Update this section when you finish a chunk of work, so the next session starts here.
 
-Done: monorepo and tooling, database, RSS/Atom and YouTube providers, weather, scheduler, the dashboard/widget API, and the dashboard UI (grid, edit mode, add/settings panel), plus UI tuning: YouTube channel groups with avatars and links, smart default titles with inline rename, and per-widget background colors.
+Done: monorepo and tooling, database, RSS/Atom and YouTube providers, weather, scheduler, the dashboard/widget API, and the dashboard UI (grid, edit mode, add/settings panel), plus UI tuning: YouTube channel groups with avatars and links, smart default titles with inline rename, and per-widget background colors. A style review of `apps/api` and `apps/web` was worked through on `feature/review_fixes` (bug fixes, types, tokens, touch targets, ESLint-enforced return types, typed `testClient` route tests, service/helper/composable extractions); the plan and leftovers are in `docs/local/review-plan.md`.
 
 Next, in the order the owner chose:
 

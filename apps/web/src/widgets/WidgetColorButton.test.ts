@@ -1,11 +1,13 @@
 import { mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { WidgetColor } from '@nuenews/shared'
 import WidgetColorButton from './WidgetColorButton.vue'
+import { inputIn } from '../test/dom'
 
 const mounted: ReturnType<typeof mount>[] = []
-function render(modelValue: string | null = null) {
+function render(modelValue: WidgetColor | null = null) {
   const wrapper = mount(WidgetColorButton, {
-    props: { modelValue } as never,
+    props: { modelValue },
     attachTo: document.body,
   })
   mounted.push(wrapper)
@@ -28,10 +30,20 @@ describe('WidgetColorButton', () => {
     expect(wrapper.get('button').attributes('aria-expanded')).toBe('true')
   })
 
+  it('moves focus to the selected color when it opens', async () => {
+    const wrapper = render('teal')
+    await wrapper.get('button').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(document.activeElement).toBe(
+      inputIn(document.body, '[role="dialog"] input[aria-label="Teal"]'),
+    )
+  })
+
   it('reports the chosen color and closes', async () => {
     const wrapper = render()
     await wrapper.get('button').trigger('click')
-    const teal = panel()!.querySelector('input[aria-label="Teal"]') as HTMLInputElement
+    const teal = inputIn(document.body, '[role="dialog"] input[aria-label="Teal"]')
     teal.click()
     await wrapper.vm.$nextTick()
 
@@ -50,5 +62,56 @@ describe('WidgetColorButton', () => {
     document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
     await wrapper.vm.$nextTick()
     expect(panel()).toBeNull()
+  })
+
+  it('returns focus to the button on Escape', async () => {
+    const wrapper = render()
+    await wrapper.get('button').trigger('click')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(document.activeElement).toBe(wrapper.get('button').element)
+  })
+
+  it('keeps the palette open on a click inside it', async () => {
+    const wrapper = render()
+    await wrapper.get('button').trigger('click')
+    panel()?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+    expect(panel()).not.toBeNull()
+  })
+
+  it('closes when the window is resized or scrolled', async () => {
+    const wrapper = render()
+    await wrapper.get('button').trigger('click')
+    window.dispatchEvent(new Event('resize'))
+    await wrapper.vm.$nextTick()
+    expect(panel()).toBeNull()
+
+    await wrapper.get('button').trigger('click')
+    document.body.dispatchEvent(new Event('scroll'))
+    await wrapper.vm.$nextTick()
+    expect(panel()).toBeNull()
+  })
+
+  it('removes its document and window listeners when unmounted while open', async () => {
+    const targets = [document, window]
+    const added = targets.map((target) => vi.spyOn(target, 'addEventListener'))
+    const removed = targets.map((target) => vi.spyOn(target, 'removeEventListener'))
+    const wrapper = render()
+    await wrapper.get('button').trigger('click')
+
+    mounted.splice(0).forEach((each) => each.unmount())
+    await Promise.resolve()
+
+    targets.forEach((_, index) => {
+      const removedListeners = removed[index]!.mock.calls.map(([type, listener]) => [
+        type,
+        listener,
+      ])
+      for (const [type, listener] of added[index]!.mock.calls) {
+        expect(removedListeners).toContainEqual([type, listener])
+      }
+    })
+    added.concat(removed).forEach((spy) => spy.mockRestore())
   })
 })

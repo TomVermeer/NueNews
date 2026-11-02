@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Palette } from 'lucide-vue-next'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import type { WidgetColor } from '@nuenews/shared'
 import ColorPicker from '../components/ColorPicker.vue'
+import { useDismissablePopover } from '../composables/useDismissablePopover'
 
 const props = defineProps<{ modelValue: WidgetColor | null }>()
 const emit = defineEmits<{ select: [color: WidgetColor | null] }>()
@@ -33,6 +34,15 @@ function toggle() {
     position.value = { top: rect.bottom + 8, right: window.innerWidth - rect.right }
   }
   open.value = true
+  void focusSelected()
+}
+
+/** Keyboard users land on the current color, so arrow keys move from there. */
+async function focusSelected() {
+  await nextTick()
+  const radios = panel.value?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ?? []
+  const selected = Array.from(radios).find((radio) => radio.checked) ?? radios[0]
+  selected?.focus()
 }
 
 function close() {
@@ -40,37 +50,7 @@ function close() {
   button.value?.focus()
 }
 
-function onPointerDown(event: PointerEvent) {
-  const target = event.target as Node
-  if (panel.value?.contains(target) || button.value?.contains(target)) return
-  open.value = false
-}
-
-function onKeyDown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close()
-}
-
-function dismiss() {
-  open.value = false
-}
-
-watch(open, (isOpen) => {
-  if (isOpen) {
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    window.addEventListener('resize', dismiss)
-    window.addEventListener('scroll', dismiss, true)
-    return
-  }
-  document.removeEventListener('pointerdown', onPointerDown)
-  document.removeEventListener('keydown', onKeyDown)
-  window.removeEventListener('resize', dismiss)
-  window.removeEventListener('scroll', dismiss, true)
-})
-
-onBeforeUnmount(() => {
-  open.value = false
-})
+useDismissablePopover({ open, inside: [panel, button], onEscape: close })
 </script>
 
 <template>

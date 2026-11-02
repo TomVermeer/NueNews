@@ -97,6 +97,55 @@ describe('parseForecast', () => {
   it('rejects answers that do not look like a forecast', () => {
     expect(() => parseForecast({ error: true }, 0, 'metric')).toThrow(ProviderError)
   })
+
+  type Window = 'next_1_hours' | 'next_6_hours' | 'next_12_hours'
+  const entry = (time: string, symbols: Partial<Record<Window, string>> = {}) => ({
+    time,
+    data: {
+      instant: { details: { air_temperature: 12 } },
+      ...Object.fromEntries(
+        Object.entries(symbols).map(([window, code]) => [
+          window,
+          { summary: { symbol_code: code } },
+        ]),
+      ),
+    },
+  })
+  const forecast = (...entries: ReturnType<typeof entry>[]) => ({
+    properties: { timeseries: entries },
+  })
+
+  it('takes day or night from the symbol, and otherwise from the local hour', () => {
+    const at = (time: string, symbol?: string) =>
+      parseForecast(forecast(entry(time, symbol ? { next_1_hours: symbol } : {})), 0, 'metric')
+        .current.isDay
+    expect(at('2026-10-21T03:00:00Z', 'clearsky_day')).toBe(true)
+    expect(at('2026-10-21T12:00:00Z', 'clearsky_night')).toBe(false)
+    expect(at('2026-10-21T12:00:00Z', 'cloudy')).toBe(true)
+    expect(at('2026-10-21T06:59:00Z', 'cloudy')).toBe(false)
+    expect(at('2026-10-21T07:00:00Z')).toBe(true)
+    expect(at('2026-10-21T19:00:00Z')).toBe(false)
+  })
+
+  it('describes now by the shortest window and a day by the longest, near midday', () => {
+    const snapshot = parseForecast(
+      forecast(
+        entry('2026-10-21T06:00:00Z', { next_1_hours: 'fog', next_12_hours: 'snow' }),
+        entry('2026-10-21T11:00:00Z', { next_1_hours: 'fog', next_6_hours: 'rain' }),
+        entry('2026-10-21T13:00:00Z', { next_1_hours: 'fog' }),
+      ),
+      0,
+      'metric',
+    )
+    expect(snapshot.current.icon).toBe('fog')
+    expect(snapshot.daily[0]?.icon).toBe('rain')
+  })
+
+  it('describes a day without any symbol as unknown', () => {
+    const snapshot = parseForecast(forecast(entry('2026-10-21T12:00:00Z')), 0, 'metric')
+    expect(snapshot.daily[0]).toMatchObject(describeSymbol(''))
+    expect(snapshot.current).toMatchObject(describeSymbol(''))
+  })
 })
 
 describe('parseGeocoding', () => {

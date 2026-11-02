@@ -1,9 +1,9 @@
-import { createRouter, createWebHistory, type RouterHistory } from 'vue-router'
+import { createRouter, createWebHistory, type Router, type RouterHistory } from 'vue-router'
 import DashboardPage from './pages/DashboardPage.vue'
 import LoginPage from './pages/LoginPage.vue'
 import { useAuthStore } from './stores/auth'
 
-export function createAppRouter(history: RouterHistory = createWebHistory()) {
+export function createAppRouter(history: RouterHistory = createWebHistory()): Router {
   const router = createRouter({
     history,
     routes: [

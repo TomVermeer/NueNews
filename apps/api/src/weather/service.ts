@@ -4,7 +4,7 @@ import type { Db } from '../db/client'
 import { firstRow } from '../db/query'
 import { weatherCache } from '../db/schema'
 import type { HttpClient } from '../lib/http'
-import { parseRetryAfter, ProviderError } from '../providers/errors'
+import { assertOk, ProviderError } from '../providers/errors'
 import { forecastUrl, parseForecast, type Units } from './metNo'
 import { geocodeUrl, parseGeocoding } from './openMeteo'
 
@@ -15,22 +15,19 @@ export interface WeatherDeps {
 }
 
 export interface WeatherResult {
-  snapshot: WeatherSnapshot
-  fetchedAt: Date
+  readonly snapshot: WeatherSnapshot
+  readonly fetchedAt: Date
   /** True when the weather service failed and an older answer is being shown. */
-  stale: boolean
+  readonly stale: boolean
 }
 
 const CACHE_TTL_MS = 30 * 60_000
 
+type CachedWeather = typeof weatherCache.$inferSelect
+
 async function getJson(http: HttpClient, url: string): Promise<unknown> {
   const res = await http.get(url, { headers: { accept: 'application/json' } })
-  if (res.status < 200 || res.status >= 300) {
-    throw new ProviderError(`The weather service answered with HTTP ${res.status}`, {
-      status: res.status,
-      retryAfterSeconds: parseRetryAfter(res.headers.get('retry-after')),
-    })
-  }
+  assertOk(res, { service: 'The weather service' })
   try {
     return JSON.parse(res.body)
   } catch {
@@ -51,13 +48,15 @@ export async function getWeather(
 ): Promise<WeatherResult> {
   const key = cacheKey(location.lat, location.lon, units)
   const cached = firstRow(await db.select().from(weatherCache).where(eq(weatherCache.key, key)))
-  const asResult = (stale: boolean): WeatherResult => ({
-    snapshot: cached!.payload as unknown as WeatherSnapshot,
-    fetchedAt: cached!.fetchedAt,
+  const fromCache = (row: CachedWeather, stale: boolean): WeatherResult => ({
+    snapshot: row.payload,
+    fetchedAt: row.fetchedAt,
     stale,
   })
 
-  if (cached && now().getTime() - cached.fetchedAt.getTime() < CACHE_TTL_MS) return asResult(false)
+  if (cached && now().getTime() - cached.fetchedAt.getTime() < CACHE_TTL_MS) {
+    return fromCache(cached, false)
+  }
 
   try {
     const lat = Number(location.lat.toFixed(2))
@@ -66,14 +65,11 @@ export async function getWeather(
     const fetchedAt = now()
     await db
       .insert(weatherCache)
-      .values({ key, payload: snapshot as unknown as Record<string, unknown>, fetchedAt })
-      .onConflictDoUpdate({
-        target: weatherCache.key,
-        set: { payload: snapshot as unknown as Record<string, unknown>, fetchedAt },
-      })
+      .values({ key, payload: snapshot, fetchedAt })
+      .onConflictDoUpdate({ target: weatherCache.key, set: { payload: snapshot, fetchedAt } })
     return { snapshot, fetchedAt, stale: false }
   } catch (error) {
-    if (cached) return asResult(true)
+    if (cached) return fromCache(cached, true)
     throw error
   }
 }

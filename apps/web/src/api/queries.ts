@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, type MaybeRefOrGetter, toValue } from 'vue'
 import type { CreateWidget, WidgetColor } from '@nuenews/shared'
 import { api, unwrap } from './client'
-import type { DashboardDetail, DashboardSummary, WidgetData, WidgetDto } from './types'
+import { isFeedData, type FeedItem, type WidgetData } from './types'
 
 export const keys = {
   dashboards: ['dashboards'] as const,
@@ -16,16 +16,15 @@ export const WIDGET_POLL_MS = 5 * 60_000
 export function useDashboardsQuery() {
   return useQuery({
     queryKey: keys.dashboards,
-    queryFn: async () =>
-      (await unwrap<{ dashboards: DashboardSummary[] }>(api.dashboards.$get())).dashboards,
+    queryFn: async () => (await unwrap(api.dashboards.$get())).dashboards,
   })
 }
 
 export function useDashboardQuery(id: MaybeRefOrGetter<string | undefined>) {
   return useQuery({
     queryKey: computed(() => keys.dashboard(toValue(id) ?? '')),
-    queryFn: () =>
-      unwrap<DashboardDetail>(api.dashboards[':id'].$get({ param: { id: toValue(id)! } })),
+    // Only runs while `enabled`, which requires an id.
+    queryFn: () => unwrap(api.dashboards[':id'].$get({ param: { id: toValue(id)! } })),
     enabled: computed(() => !!toValue(id)),
   })
 }
@@ -33,7 +32,7 @@ export function useDashboardQuery(id: MaybeRefOrGetter<string | undefined>) {
 export function useWidgetDataQuery(id: MaybeRefOrGetter<string>) {
   return useQuery({
     queryKey: computed(() => keys.widgetData(toValue(id))),
-    queryFn: () => unwrap<WidgetData>(api.widgets[':id'].data.$get({ param: { id: toValue(id) } })),
+    queryFn: () => unwrap(api.widgets[':id'].data.$get({ param: { id: toValue(id) } })),
     refetchInterval: WIDGET_POLL_MS,
   })
 }
@@ -44,19 +43,16 @@ export function useDashboardMutations() {
 
   return {
     create: useMutation({
-      mutationFn: (name: string) =>
-        unwrap<DashboardSummary>(api.dashboards.$post({ json: { name } })),
+      mutationFn: (name: string) => unwrap(api.dashboards.$post({ json: { name } })),
       onSuccess: refreshList,
     }),
     rename: useMutation({
       mutationFn: (vars: { id: string; name: string }) =>
-        unwrap<DashboardSummary>(
-          api.dashboards[':id'].$patch({ param: { id: vars.id }, json: { name: vars.name } }),
-        ),
+        unwrap(api.dashboards[':id'].$patch({ param: { id: vars.id }, json: { name: vars.name } })),
       onSuccess: refreshList,
     }),
     remove: useMutation({
-      mutationFn: (id: string) => unwrap<void>(api.dashboards[':id'].$delete({ param: { id } })),
+      mutationFn: (id: string) => unwrap(api.dashboards[':id'].$delete({ param: { id } })),
       onSuccess: refreshList,
     }),
   }
@@ -76,7 +72,7 @@ export function useWidgetMutations() {
   return {
     saveLayout: useMutation({
       mutationFn: (vars: LayoutSave) =>
-        unwrap<DashboardDetail>(
+        unwrap(
           api.dashboards[':id'].layout.$put({
             param: { id: vars.dashboardId },
             json: { widgets: vars.widgets, removed: vars.removed },
@@ -90,7 +86,7 @@ export function useWidgetMutations() {
 
     create: useMutation({
       mutationFn: (vars: { dashboardId: string; widget: CreateWidget }) =>
-        unwrap<WidgetDto>(
+        unwrap(
           api.dashboards[':id'].widgets.$post({
             param: { id: vars.dashboardId },
             json: vars.widget,
@@ -107,7 +103,7 @@ export function useWidgetMutations() {
         color?: WidgetColor | null
         config?: Record<string, unknown>
       }) =>
-        unwrap<WidgetDto>(
+        unwrap(
           api.widgets[':id'].$patch({
             param: { id: vars.id },
             json: { title: vars.title, color: vars.color, config: vars.config },
@@ -120,18 +116,42 @@ export function useWidgetMutations() {
     }),
 
     refresh: useMutation({
-      mutationFn: (id: string) =>
-        unwrap<{ refreshed: number; skipped: number }>(
-          api.widgets[':id'].refresh.$post({ param: { id } }),
-        ),
+      mutationFn: (id: string) => unwrap(api.widgets[':id'].refresh.$post({ param: { id } })),
       onSuccess: (_result, id) => client.invalidateQueries({ queryKey: keys.widgetData(id) }),
     }),
   }
 }
 
-export function useItemStateMutation() {
+type ItemAction = 'seen' | 'read' | 'unread'
+
+/** An item after `action`, as the API records it: reading also marks it seen, unreading does not unsee it. */
+function withItemState(item: FeedItem, action: ItemAction): FeedItem {
+  if (action === 'read') return { ...item, read: true, seen: true }
+  if (action === 'seen') return { ...item, seen: true }
+  return { ...item, read: false }
+}
+
+/**
+ * Marks items of one widget seen, read or unread. The widget's list updates straight away, without
+ * waiting for the server.
+ */
+export function useItemStateMutation(widgetId: MaybeRefOrGetter<string>) {
+  const client = useQueryClient()
+
   return useMutation({
-    mutationFn: (vars: { ids: string[]; action: 'seen' | 'read' | 'unread' }) =>
-      unwrap<{ updated: number }>(api.items.state.$post({ json: vars })),
+    mutationFn: (vars: { ids: string[]; action: ItemAction }) =>
+      unwrap(api.items.state.$post({ json: vars })),
+    onMutate: (vars) => {
+      client.setQueryData<WidgetData>(keys.widgetData(toValue(widgetId)), (old) =>
+        old && isFeedData(old)
+          ? {
+              ...old,
+              items: old.items.map((item) =>
+                vars.ids.includes(item.id) ? withItemState(item, vars.action) : item,
+              ),
+            }
+          : old,
+      )
+    },
   })
 }
