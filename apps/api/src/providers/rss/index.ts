@@ -1,3 +1,4 @@
+import type { HttpResponse } from '../../lib/http'
 import { parseRetryAfter, ProviderError } from '../errors'
 import type { FetchContext, FetchResult, Provider, ResolvedSource, SourceRef } from '../types'
 import { findFeedLinks } from './discover'
@@ -29,7 +30,7 @@ export async function download(
   url: string,
   ctx: FetchContext,
   headers: Record<string, string> = {},
-) {
+): Promise<HttpResponse> {
   const res = await ctx.http.get(url, { headers: { accept: ACCEPT, ...headers } })
   if (res.status === 304) return res
   if (res.status < 200 || res.status >= 300) {

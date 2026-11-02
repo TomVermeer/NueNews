@@ -7,10 +7,11 @@ const CHANNEL_ID = /^UC[\w-]{22}$/
 const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com'])
 const HANDLE = /^[\w.-]{1,100}$/
 
-export const feedUrlFor = (channelId: string) =>
+export const feedUrlFor = (channelId: string): string =>
   `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
 
-export const channelUrlFor = (channelId: string) => `https://www.youtube.com/channel/${channelId}`
+export const channelUrlFor = (channelId: string): string =>
+  `https://www.youtube.com/channel/${channelId}`
 
 function parseUrl(input: string): URL | undefined {
   try {

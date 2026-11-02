@@ -1,6 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import type { ValidationTargets } from 'hono'
-import type { ErrorHandler } from 'hono'
+import type { ErrorHandler, NotFoundHandler, ValidationTargets } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { ZodType } from 'zod'
 import type { ApiErrorBody } from '@nuenews/shared'
@@ -19,9 +18,11 @@ export class ApiError extends Error {
   }
 }
 
-export const notFound = (what: string) => new ApiError(404, 'not_found', `${what} not found`)
+export const notFound = (what: string): ApiError =>
+  new ApiError(404, 'not_found', `${what} not found`)
 
 /** Validates a request part and reports problems in the API's standard error shape. */
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- zValidator's inferred type carries the validated input into the routes
 export function validate<S extends ZodType, T extends keyof ValidationTargets>(
   target: T,
   schema: S,
@@ -58,7 +59,7 @@ export const errorHandler: ErrorHandler = (error, c) => {
   return c.json(body, 500)
 }
 
-export function notFoundHandler(c: Parameters<ErrorHandler>[1]) {
+export const notFoundHandler: NotFoundHandler = (c) => {
   const body: ApiErrorBody = { error: { code: 'not_found', message: 'No such route' } }
   return c.json(body, 404)
 }

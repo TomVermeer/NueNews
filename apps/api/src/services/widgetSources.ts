@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import type { SourceKind, WidgetType } from '@nuenews/shared'
+import type { Layout, SourceKind, WidgetType } from '@nuenews/shared'
 import { feedConfigSchema, youtubeConfigSchema } from '@nuenews/shared'
 import type { Db } from '../db/client'
 import { firstRow, onlyRow } from '../db/query'
@@ -126,7 +126,11 @@ export async function nextFreeY(db: Db, dashboardId: string): Promise<number> {
   return row?.bottom ?? 0
 }
 
-export async function ownedDashboard(db: Db, userId: string, id: string) {
+export async function ownedDashboard(
+  db: Db,
+  userId: string,
+  id: string,
+): Promise<typeof dashboards.$inferSelect | undefined> {
   return firstRow(
     await db
       .select()
@@ -135,7 +139,11 @@ export async function ownedDashboard(db: Db, userId: string, id: string) {
   )
 }
 
-export async function ownedWidget(db: Db, userId: string, id: string) {
+export async function ownedWidget(
+  db: Db,
+  userId: string,
+  id: string,
+): Promise<WidgetRow | undefined> {
   return firstRow(
     await db
       .select({ widget: widgets })
@@ -145,7 +153,12 @@ export async function ownedWidget(db: Db, userId: string, id: string) {
   )?.widget
 }
 
-export function toWidgetDto(widget: typeof widgets.$inferSelect) {
+type WidgetRow = typeof widgets.$inferSelect
+
+/** A widget as the API returns it: the grid position grouped under `layout`. */
+export type WidgetDto = Omit<WidgetRow, 'x' | 'y' | 'w' | 'h'> & { layout: Layout }
+
+export function toWidgetDto(widget: WidgetRow): WidgetDto {
   return {
     id: widget.id,
     dashboardId: widget.dashboardId,

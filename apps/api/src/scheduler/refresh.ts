@@ -135,7 +135,7 @@ export async function selectDueSources(
   registry: ProviderRegistry,
   now: Date,
   limit: number,
-) {
+): Promise<SourceRow[]> {
   const kinds = registry.kinds()
   if (kinds.length === 0) return []
   return db
