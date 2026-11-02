@@ -64,6 +64,35 @@ describe('WidgetColorButton', () => {
     expect(panel()).toBeNull()
   })
 
+  it('returns focus to the button on Escape', async () => {
+    const wrapper = render()
+    await wrapper.get('button').trigger('click')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(document.activeElement).toBe(wrapper.get('button').element)
+  })
+
+  it('keeps the palette open on a click inside it', async () => {
+    const wrapper = render()
+    await wrapper.get('button').trigger('click')
+    panel()?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+    expect(panel()).not.toBeNull()
+  })
+
+  it('closes when the window is resized or scrolled', async () => {
+    const wrapper = render()
+    await wrapper.get('button').trigger('click')
+    window.dispatchEvent(new Event('resize'))
+    await wrapper.vm.$nextTick()
+    expect(panel()).toBeNull()
+
+    await wrapper.get('button').trigger('click')
+    document.body.dispatchEvent(new Event('scroll'))
+    await wrapper.vm.$nextTick()
+    expect(panel()).toBeNull()
+  })
+
   it('removes its document and window listeners when unmounted while open', async () => {
     const targets = [document, window]
     const added = targets.map((target) => vi.spyOn(target, 'addEventListener'))

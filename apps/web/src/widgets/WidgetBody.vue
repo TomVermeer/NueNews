@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import { useQueryClient } from '@tanstack/vue-query'
 import { TriangleAlert } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { ApiRequestError } from '../api/client'
-import { keys, useItemStateMutation, useWidgetDataQuery } from '../api/queries'
-import {
-  isFeedData,
-  isWeatherData,
-  type FeedItem,
-  type WidgetData,
-  type WidgetDto,
-} from '../api/types'
+import { useItemStateMutation, useWidgetDataQuery } from '../api/queries'
+import { isFeedData, isWeatherData, type FeedItem, type WidgetDto } from '../api/types'
 import FeedWidget from './FeedWidget.vue'
 import WeatherWidget from './WeatherWidget.vue'
 import YouTubeWidget from './YouTubeWidget.vue'
@@ -18,8 +11,7 @@ import YouTubeWidget from './YouTubeWidget.vue'
 const props = defineProps<{ widget: WidgetDto }>()
 
 const query = useWidgetDataQuery(() => props.widget.id)
-const client = useQueryClient()
-const itemState = useItemStateMutation()
+const itemState = useItemStateMutation(() => props.widget.id)
 
 const errorMessage = computed(() => {
   const error = query.error.value
@@ -27,17 +19,9 @@ const errorMessage = computed(() => {
   return error instanceof ApiRequestError ? error.message : 'Something went wrong'
 })
 
-/** Opening an item marks it read, and the list updates immediately without waiting for the server. */
+/** Opening an item marks it read; the mutation updates the list without waiting for the server. */
 function markRead(item: FeedItem) {
   if (item.read) return
-  client.setQueryData<WidgetData>(keys.widgetData(props.widget.id), (old) =>
-    old && isFeedData(old)
-      ? {
-          ...old,
-          items: old.items.map((i) => (i.id === item.id ? { ...i, read: true, seen: true } : i)),
-        }
-      : old,
-  )
   itemState.mutate({ ids: [item.id], action: 'read' })
 }
 </script>

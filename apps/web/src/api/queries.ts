@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, type MaybeRefOrGetter, toValue } from 'vue'
 import type { CreateWidget, WidgetColor } from '@nuenews/shared'
 import { api, unwrap } from './client'
+import { isFeedData, type FeedItem, type WidgetData } from './types'
 
 export const keys = {
   dashboards: ['dashboards'] as const,
@@ -121,9 +122,36 @@ export function useWidgetMutations() {
   }
 }
 
-export function useItemStateMutation() {
+type ItemAction = 'seen' | 'read' | 'unread'
+
+/** An item after `action`, as the API records it: reading also marks it seen, unreading does not unsee it. */
+function withItemState(item: FeedItem, action: ItemAction): FeedItem {
+  if (action === 'read') return { ...item, read: true, seen: true }
+  if (action === 'seen') return { ...item, seen: true }
+  return { ...item, read: false }
+}
+
+/**
+ * Marks items of one widget seen, read or unread. The widget's list updates straight away, without
+ * waiting for the server.
+ */
+export function useItemStateMutation(widgetId: MaybeRefOrGetter<string>) {
+  const client = useQueryClient()
+
   return useMutation({
-    mutationFn: (vars: { ids: string[]; action: 'seen' | 'read' | 'unread' }) =>
+    mutationFn: (vars: { ids: string[]; action: ItemAction }) =>
       unwrap(api.items.state.$post({ json: vars })),
+    onMutate: (vars) => {
+      client.setQueryData<WidgetData>(keys.widgetData(toValue(widgetId)), (old) =>
+        old && isFeedData(old)
+          ? {
+              ...old,
+              items: old.items.map((item) =>
+                vars.ids.includes(item.id) ? withItemState(item, vars.action) : item,
+              ),
+            }
+          : old,
+      )
+    },
   })
 }

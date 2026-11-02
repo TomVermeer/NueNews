@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Palette } from 'lucide-vue-next'
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import type { WidgetColor } from '@nuenews/shared'
 import ColorPicker from '../components/ColorPicker.vue'
+import { useDismissablePopover } from '../composables/useDismissablePopover'
 
 const props = defineProps<{ modelValue: WidgetColor | null }>()
 const emit = defineEmits<{ select: [color: WidgetColor | null] }>()
@@ -49,39 +50,7 @@ function close() {
   button.value?.focus()
 }
 
-function onPointerDown(event: PointerEvent) {
-  const target = event.target
-  const inside =
-    target instanceof Node && (panel.value?.contains(target) || button.value?.contains(target))
-  if (inside) return
-  open.value = false
-}
-
-function onKeyDown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close()
-}
-
-function dismiss() {
-  open.value = false
-}
-
-function removeListeners() {
-  document.removeEventListener('pointerdown', onPointerDown)
-  document.removeEventListener('keydown', onKeyDown)
-  window.removeEventListener('resize', dismiss)
-  window.removeEventListener('scroll', dismiss, true)
-}
-
-watch(open, (isOpen) => {
-  if (!isOpen) return removeListeners()
-  document.addEventListener('pointerdown', onPointerDown)
-  document.addEventListener('keydown', onKeyDown)
-  window.addEventListener('resize', dismiss)
-  window.addEventListener('scroll', dismiss, true)
-})
-
-// The watcher is stopped on unmount before it can see `open` turn false, so clean up here.
-onBeforeUnmount(removeListeners)
+useDismissablePopover({ open, inside: [panel, button], onEscape: close })
 </script>
 
 <template>

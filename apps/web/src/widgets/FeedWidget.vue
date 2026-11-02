@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Inbox, TriangleAlert } from 'lucide-vue-next'
+import { Inbox } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { feedConfigSchema } from '@nuenews/shared'
 import type { FeedData, FeedItem } from '../api/types'
 import { timeAgo } from '../lib/time'
+import SourceErrors from './SourceErrors.vue'
 
 const displaySchema = feedConfigSchema.pick({
   excerpt: true,
@@ -24,8 +25,6 @@ const emit = defineEmits<{ open: [item: FeedItem] }>()
 const display = computed(
   () => displaySchema.safeParse(props.config ?? {}).data ?? displaySchema.parse({}),
 )
-
-const failing = computed(() => props.data.sources.filter((source) => source.error))
 
 // A feed that never has images keeps the plain layout instead of a column of empty placeholders.
 const showThumbnails = computed(
@@ -99,14 +98,6 @@ function meta(item: FeedItem): string {
       </li>
     </ul>
 
-    <p
-      v-for="source in failing"
-      :key="source.id"
-      class="mt-2 flex items-start gap-1.5 text-xs text-warning"
-      role="status"
-    >
-      <TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-      <span>{{ source.title ?? 'A source' }}: {{ source.error }}</span>
-    </p>
+    <SourceErrors :sources="data.sources" fallback-name="A source" class="mt-2" />
   </div>
 </template>

@@ -106,6 +106,21 @@ describe('WidgetBody', () => {
     })
   })
 
+  it('keeps an opened item marked read when the server call fails', async () => {
+    fakeApi.on('GET widgets/:id/data', { body: feedData([feedItem(1)]) })
+    fakeApi.on('POST items/state', { status: 500, body: { error: { code: 'x', message: 'x' } } })
+    const { wrapper } = await mountApp(WidgetBody, {
+      props: { widget: widget('w1', { config: { unreadDots: true } }) },
+    })
+    await flushPromises()
+    await wrapper
+      .findAll('a')
+      .find((a) => a.text() === 'Headline 1')!
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="unread-dot"]')).toHaveLength(0)
+  })
+
   it('does not tell the server again about items that are already read', async () => {
     fakeApi.on('GET widgets/:id/data', { body: feedData([feedItem(1, { read: true })]) })
     const { wrapper } = await mountApp(WidgetBody, { props: { widget: widget('w1') } })

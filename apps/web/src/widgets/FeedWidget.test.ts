@@ -152,5 +152,17 @@ describe('FeedWidget', () => {
     const warnings = wrapper.findAll('[role="status"]')
     expect(warnings).toHaveLength(1)
     expect(warnings[0]!.text()).toContain('Broken feed: error: HTTP 500')
+    expect(warnings[0]!.classes()).toContain('mt-2')
+  })
+
+  it('names a failing source without a title "A source"', () => {
+    const wrapper = render({
+      data: feedData([], {
+        sources: [
+          { id: 's', title: null, siteUrl: null, iconUrl: null, lastFetchedAt: null, error: 'x' },
+        ],
+      }),
+    })
+    expect(wrapper.get('[role="status"]').text()).toBe('A source: x')
   })
 })
