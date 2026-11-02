@@ -8,11 +8,11 @@ export interface HttpHeaders {
 }
 
 export interface HttpResponse {
-  status: number
-  headers: HttpHeaders
+  readonly status: number
+  readonly headers: HttpHeaders
   /** The URL the body came from, after any redirects. */
-  url: string
-  body: string
+  readonly url: string
+  readonly body: string
 }
 
 export interface HttpClient {
@@ -30,9 +30,9 @@ export class HttpError extends Error {
 }
 
 export interface RawResponse {
-  status: number
-  headers: HttpHeaders
-  body: ReadableStream<Uint8Array> | null
+  readonly status: number
+  readonly headers: HttpHeaders
+  readonly body: ReadableStream<Uint8Array> | null
 }
 
 export type FetchLike = (
@@ -41,11 +41,11 @@ export type FetchLike = (
 ) => Promise<RawResponse>
 
 export interface HttpClientOptions {
-  userAgent: string
-  fetchImpl: FetchLike
-  timeoutMs?: number
-  maxBytes?: number
-  maxRedirects?: number
+  readonly userAgent: string
+  readonly fetchImpl: FetchLike
+  readonly timeoutMs?: number
+  readonly maxBytes?: number
+  readonly maxRedirects?: number
 }
 
 async function readBody(res: RawResponse, maxBytes: number, signal: AbortSignal): Promise<string> {

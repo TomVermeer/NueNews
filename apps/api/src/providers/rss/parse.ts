@@ -11,9 +11,9 @@ export class FeedParseError extends Error {
 }
 
 export interface ParsedFeed {
-  title?: string
-  siteUrl?: string
-  items: NormalizedItem[]
+  readonly title?: string
+  readonly siteUrl?: string
+  readonly items: readonly NormalizedItem[]
 }
 
 const MAX_ITEMS = 100

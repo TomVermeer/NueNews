@@ -15,10 +15,10 @@ export interface WeatherDeps {
 }
 
 export interface WeatherResult {
-  snapshot: WeatherSnapshot
-  fetchedAt: Date
+  readonly snapshot: WeatherSnapshot
+  readonly fetchedAt: Date
   /** True when the weather service failed and an older answer is being shown. */
-  stale: boolean
+  readonly stale: boolean
 }
 
 const CACHE_TTL_MS = 30 * 60_000

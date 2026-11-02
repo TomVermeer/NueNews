@@ -7,7 +7,7 @@ import { items } from './schema'
 export async function upsertItems(
   db: Db,
   sourceId: string,
-  incoming: NormalizedItem[],
+  incoming: readonly NormalizedItem[],
   now = new Date(),
 ): Promise<void> {
   if (incoming.length === 0) return
