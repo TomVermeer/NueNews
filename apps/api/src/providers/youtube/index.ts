@@ -1,6 +1,6 @@
 import { ProviderError } from '../errors'
 import { download, fetchFeed } from '../rss'
-import { FeedParseError, parseFeed } from '../rss/parse'
+import { readFeed } from '../rss/parse'
 import type { FetchContext, Provider, ResolvedSource } from '../types'
 
 const CHANNEL_ID = /^UC[\w-]{22}$/
@@ -12,6 +12,11 @@ export const feedUrlFor = (channelId: string): string =>
 
 export const channelUrlFor = (channelId: string): string =>
   `https://www.youtube.com/channel/${channelId}`
+
+/** YouTube sends visitors without cookies to its consent wall instead of the page they asked for. */
+export function isConsentPage(url: string): boolean {
+  return new URL(url).hostname.startsWith('consent.')
+}
 
 function parseUrl(input: string): URL | undefined {
   try {
@@ -91,7 +96,7 @@ export const youtubeProvider: Provider = {
       }
 
       const page = await download(pageUrl, ctx)
-      if (new URL(page.url).hostname.startsWith('consent.')) {
+      if (isConsentPage(page.url)) {
         throw new ProviderError(
           'YouTube asked for cookie consent, so that handle could not be looked up. Paste the channel address that contains /channel/UC… instead.',
         )
@@ -101,27 +106,15 @@ export const youtubeProvider: Provider = {
     }
 
     const res = await download(feedUrlFor(channelId), ctx)
-    try {
-      const feed = parseFeed(res.body, res.url, ctx.now())
-      return {
-        kind: 'youtube',
-        key: channelId,
-        title: feed.title,
-        siteUrl: channelUrlFor(channelId),
-      }
-    } catch (error) {
-      if (error instanceof FeedParseError) {
-        throw new ProviderError('YouTube did not return a feed for this channel')
-      }
-      throw error
-    }
+    const feed = readFeed(res, ctx.now(), 'YouTube did not return a feed for this channel')
+    return { kind: 'youtube', key: channelId, title: feed.title, siteUrl: channelUrlFor(channelId) }
   },
 
   fetch: (source, ctx) => fetchFeed(feedUrlFor(source.key), source, ctx),
 
   async fetchIcon(source, ctx) {
     const page = await download(channelUrlFor(source.key), ctx)
-    if (new URL(page.url).hostname.startsWith('consent.')) return undefined
+    if (isConsentPage(page.url)) return undefined
     return iconFromPage(page.body)
   },
 }

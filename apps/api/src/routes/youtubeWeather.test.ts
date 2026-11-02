@@ -2,16 +2,31 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import type { HttpClient } from '../lib/http'
 import { sources, weatherCache } from '../db/schema'
-import { createTestApp, fakeContext, item, NOW } from '../test/helpers'
+import {
+  addWidget,
+  createTestApp,
+  errorOf,
+  fakeContext,
+  item,
+  newDashboard,
+  NOW,
+  type CreateWidgetInput,
+  type TestApp,
+} from '../test/helpers'
 
 const CHANNEL = 'UCsBjURrPoezykLs9EqgamOA'
 const fixture = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
-async function dashboard(t: Awaited<ReturnType<typeof createTestApp>>) {
-  return (await t.call('POST', '/dashboards', { name: 'Home' })).body.id as string
+/** Creates the widget on a new dashboard and returns its id. */
+async function createdWidgetId(t: TestApp, widget: CreateWidgetInput) {
+  const res = await addWidget(t, await newDashboard(t), widget)
+  expect(res.status).toBe(201)
+  return (await res.json()).id
 }
 
-const youtubeWidget = (channels: { input: string; label?: string }[]) => ({
+const widgetData = (t: TestApp, id: string) => t.client.widgets[':id'].data.$get({ param: { id } })
+
+const youtubeWidget = (channels: { input: string; label?: string }[]): CreateWidgetInput => ({
   type: 'youtube',
   title: 'Videos',
   config: { channels },
@@ -26,10 +41,9 @@ describe('YouTube widgets', () => {
         title: 'Channel name',
       }),
     })
-    const id = await dashboard(t)
-    const res = await t.call(
-      'POST',
-      `/dashboards/${id}/widgets`,
+    const res = await addWidget(
+      t,
+      await newDashboard(t),
       youtubeWidget([
         { input: CHANNEL },
         { input: `https://www.youtube.com/channel/${CHANNEL}` }, // same channel again
@@ -38,7 +52,7 @@ describe('YouTube widgets', () => {
     )
 
     expect(res.status).toBe(201)
-    expect(res.body.layout).toEqual({ x: 0, y: 0, w: 6, h: 5 })
+    expect((await res.json()).layout).toEqual({ x: 0, y: 0, w: 6, h: 5 })
     const rows = await t.db.select().from(sources)
     expect(rows.map((r) => [r.kind, r.key]).sort()).toEqual([
       ['youtube', 'UCabcdefghijklmnopqrstuv'],
@@ -49,15 +63,15 @@ describe('YouTube widgets', () => {
 
   it('asks the user to resolve handles first, because it will not look them up while saving', async () => {
     const t = await createTestApp()
-    const id = await dashboard(t)
-    const res = await t.call(
-      'POST',
-      `/dashboards/${id}/widgets`,
+    const res = await addWidget(
+      t,
+      await newDashboard(t),
       youtubeWidget([{ input: '@somechannel' }]),
     )
     expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('invalid_config')
-    expect(res.body.error.message).toContain('/sources/resolve')
+    const { error } = await errorOf(res)
+    expect(error.code).toBe('invalid_config')
+    expect(error.message).toContain('/sources/resolve')
     expect(t.fetch).not.toHaveBeenCalled()
   })
 
@@ -69,14 +83,11 @@ describe('YouTube widgets', () => {
         title: 'Channel name',
       }),
     })
-    const id = await dashboard(t)
-    const created = await t.call(
-      'POST',
-      `/dashboards/${id}/widgets`,
-      youtubeWidget([{ input: CHANNEL, label: 'Fireship' }]),
-    )
-    const { status, body } = await t.call('GET', `/widgets/${created.body.id}/data`)
-    expect(status).toBe(200)
+    const id = await createdWidgetId(t, youtubeWidget([{ input: CHANNEL, label: 'Fireship' }]))
+    const res = await widgetData(t, id)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    if (!('items' in body)) throw new Error('Expected video data, got weather data')
     expect(body.items).toHaveLength(1)
     expect(body.items[0]).toMatchObject({ title: 'Newest video', sourceName: 'Fireship' })
     expect(body.sources[0]).toMatchObject({ title: 'Fireship', error: null })
@@ -86,8 +97,10 @@ describe('YouTube widgets', () => {
     const t = await createTestApp({
       resolve: async (input) => ({ kind: 'youtube', key: CHANNEL, title: `Resolved ${input}` }),
     })
-    const res = await t.call('POST', '/sources/resolve', { kind: 'youtube', input: '@Fireship' })
-    expect(res.body).toMatchObject({ kind: 'youtube', key: CHANNEL })
+    const res = await t.client.sources.resolve.$post({
+      json: { kind: 'youtube', input: '@Fireship' },
+    })
+    expect(await res.json()).toMatchObject({ kind: 'youtube', key: CHANNEL })
   })
 })
 
@@ -103,7 +116,7 @@ describe('weather widgets', () => {
     body,
   })
 
-  const weatherWidget = {
+  const weatherWidget: Extract<CreateWidgetInput, { type: 'weather' }> = {
     type: 'weather',
     title: 'Weather',
     config: { location: { name: 'Amsterdam', lat: 52.37, lon: 4.9 }, units: 'metric' },
@@ -114,11 +127,12 @@ describe('weather widgets', () => {
       respond(fixture('../weather/__fixtures__/met-forecast.json')),
     )
     const t = await weatherApp(get)
-    const created = await t.call('POST', `/dashboards/${await dashboard(t)}/widgets`, weatherWidget)
+    const id = await createdWidgetId(t, weatherWidget)
 
-    const { status, body } = await t.call('GET', `/widgets/${created.body.id}/data`)
+    const res = await widgetData(t, id)
 
-    expect(status).toBe(200)
+    expect(res.status).toBe(200)
+    const body = await res.json()
     expect(body).toMatchObject({
       widget: { type: 'weather', title: 'Weather' },
       location: { name: 'Amsterdam' },
@@ -127,6 +141,7 @@ describe('weather widgets', () => {
       stale: false,
       attribution: 'Data from MET Norway',
     })
+    if (!('daily' in body)) throw new Error('Expected weather data, got feed data')
     expect(body.daily).toHaveLength(5)
     expect(await t.db.select().from(weatherCache)).toHaveLength(1)
   })
@@ -136,28 +151,28 @@ describe('weather widgets', () => {
       respond(fixture('../weather/__fixtures__/met-forecast.json')),
     )
     const t = await weatherApp(get)
-    const created = await t.call('POST', `/dashboards/${await dashboard(t)}/widgets`, weatherWidget)
-    await t.call('GET', `/widgets/${created.body.id}/data`)
-    await t.call('GET', `/widgets/${created.body.id}/data`)
+    const id = await createdWidgetId(t, weatherWidget)
+    await widgetData(t, id)
+    await widgetData(t, id)
     expect(get).toHaveBeenCalledTimes(1)
   })
 
   it('reports an unavailable weather service as a 422 the UI can show', async () => {
     const t = await weatherApp(async () => respond('', 500))
-    const created = await t.call('POST', `/dashboards/${await dashboard(t)}/widgets`, weatherWidget)
-    const { status, body } = await t.call('GET', `/widgets/${created.body.id}/data`)
-    expect(status).toBe(422)
-    expect(body.error.code).toBe('source_error')
+    const id = await createdWidgetId(t, weatherWidget)
+    const res = await widgetData(t, id)
+    expect(res.status).toBe(422)
+    expect((await errorOf(res)).error.code).toBe('source_error')
   })
 
   it('validates coordinates and units', async () => {
     const t = await weatherApp(async () => respond('{}'))
-    const id = await dashboard(t)
-    const badLat = await t.call('POST', `/dashboards/${id}/widgets`, {
+    const id = await newDashboard(t)
+    const badLat = await addWidget(t, id, {
       ...weatherWidget,
       config: { location: { name: 'X', lat: 120, lon: 0 } },
     })
-    const badUnits = await t.call('POST', `/dashboards/${id}/widgets`, {
+    const badUnits = await t.send('POST', `/dashboards/${id}/widgets`, {
       ...weatherWidget,
       config: { ...weatherWidget.config, units: 'kelvin' },
     })
@@ -179,9 +194,9 @@ describe('GET /geocode', () => {
       respond(fixture('../weather/__fixtures__/geocoding.json')),
     )
     const t = await createTestApp({}, { fetchContext: { ...fakeContext(), http: { get } } })
-    const { status, body } = await t.call('GET', '/geocode?q=Amsterdam')
-    expect(status).toBe(200)
-    expect(body.results[0]).toMatchObject({
+    const res = await t.client.geocode.$get({ query: { q: 'Amsterdam' } })
+    expect(res.status).toBe(200)
+    expect((await res.json()).results[0]).toMatchObject({
       name: 'Amsterdam',
       country: 'Netherlands',
       lat: 52.37403,
@@ -191,8 +206,8 @@ describe('GET /geocode', () => {
 
   it('needs a query of at least two characters', async () => {
     const t = await createTestApp()
-    expect((await t.call('GET', '/geocode')).status).toBe(400)
-    expect((await t.call('GET', '/geocode?q=a')).status).toBe(400)
+    expect((await t.send('GET', '/geocode')).status).toBe(400)
+    expect((await t.client.geocode.$get({ query: { q: 'a' } })).status).toBe(400)
   })
 
   it('reports service failures', async () => {
@@ -200,7 +215,7 @@ describe('GET /geocode', () => {
       {},
       { fetchContext: { ...fakeContext(), http: { get: async () => respond('', 500) } } },
     )
-    const res = await t.call('GET', '/geocode?q=Amsterdam')
+    const res = await t.client.geocode.$get({ query: { q: 'Amsterdam' } })
     expect(res.status).toBe(422)
   })
 })

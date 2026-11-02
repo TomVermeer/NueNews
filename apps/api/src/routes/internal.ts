@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
+import { bearerToken } from '../auth/bearer'
 import { ApiError } from '../http'
 
 export interface InternalOptions {
@@ -22,8 +23,8 @@ function matches(given: string, expected: string): boolean {
  */
 export function internalRoutes({ secret, tick }: InternalOptions) {
   return new Hono().post('/tick', async (c) => {
-    const [scheme, given] = (c.req.header('authorization') ?? '').split(' ')
-    if (scheme?.toLowerCase() !== 'bearer' || !given || !matches(given, secret)) {
+    const given = bearerToken(c.req.header('authorization'))
+    if (!given || !matches(given, secret)) {
       throw new ApiError(401, 'unauthorized', 'Missing or wrong secret')
     }
     return c.json({ refreshed: await tick() })

@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose'
 import type { Db } from '../db/client'
 import { users } from '../db/schema'
+import { bearerToken } from './bearer'
 import type { Authenticator } from './types'
 
 export interface SupabaseAuthOptions {
@@ -26,20 +27,21 @@ export function createSupabaseAuthenticator(options: SupabaseAuthOptions): Authe
   const keys =
     options.keys ??
     createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`), { cooldownDuration: 30_000 })
-  const known = new Set<string>()
+  // Users already stored, so each one is inserted once per process rather than per request.
+  const storedUserIds = new Set<string>()
 
   async function ensureUser(id: string, email?: string) {
-    if (known.has(id)) return
+    if (storedUserIds.has(id)) return
     await options.db
       .insert(users)
       .values({ id, email: email ?? null, name: email ?? 'User' })
       .onConflictDoNothing()
-    known.add(id)
+    storedUserIds.add(id)
   }
 
   return async (headers) => {
-    const [scheme, token] = (headers.get('authorization') ?? '').split(' ')
-    if (scheme?.toLowerCase() !== 'bearer' || !token) return undefined
+    const token = bearerToken(headers.get('authorization'))
+    if (!token) return undefined
 
     try {
       const verified = { issuer, audience: 'authenticated' }

@@ -4,7 +4,7 @@ import { feedConfigSchema, youtubeConfigSchema } from '@nuenews/shared'
 import type { Db } from '../db/client'
 import { firstRow, onlyRow } from '../db/query'
 import { dashboards, sources, widgetSources, widgets } from '../db/schema'
-import { ApiError } from '../http'
+import { ApiError, notFound } from '../http'
 import { checkUrl } from '../lib/ssrf'
 import { channelIdFromInput } from '../providers/youtube'
 
@@ -56,45 +56,46 @@ export function sourceRefsFor(type: WidgetType, config: unknown): SourceRef[] {
 export function sourceLabels(type: WidgetType, config: unknown): Map<string, string | undefined> {
   if (type === 'feed') {
     const feed = feedConfigSchema.parse(config)
-    return new Map(feed.sources.map((s) => [checkUrl(s.url).href, s.label]))
+    return new Map(feed.sources.map((source) => [checkUrl(source.url).href, source.label]))
   }
   if (type === 'youtube') {
     const { channels } = youtubeConfigSchema.parse(config)
-    return new Map(channels.map((c) => [channelIdFromInput(c.input) ?? c.input, c.label]))
+    return new Map(
+      channels.map((channel) => [
+        channelIdFromInput(channel.input) ?? channel.input,
+        channel.label,
+      ]),
+    )
   }
   return new Map()
 }
 
-/** Makes the widget's source links match `refs`, creating any sources that are new. */
-export async function linkWidgetSources(
+/** The id of the source for `ref`, creating it (due right away) when it does not exist yet. */
+async function ensureSource(
   db: Db,
-  widgetId: string,
-  refs: SourceRef[],
+  ref: SourceRef,
   now: Date,
-): Promise<{ sourceIds: string[]; newSourceIds: string[] }> {
-  const sourceIds: string[] = []
-  const newSourceIds: string[] = []
+): Promise<{ id: string; created: boolean }> {
+  const created = firstRow(
+    await db
+      .insert(sources)
+      .values({ kind: ref.kind, key: ref.key, nextFetchAt: now })
+      .onConflictDoNothing({ target: [sources.kind, sources.key] })
+      .returning({ id: sources.id }),
+  )
+  if (created) return { id: created.id, created: true }
 
-  for (const ref of refs) {
-    const created = firstRow(
-      await db
-        .insert(sources)
-        .values({ kind: ref.kind, key: ref.key, nextFetchAt: now })
-        .onConflictDoNothing({ target: [sources.kind, sources.key] })
-        .returning({ id: sources.id }),
-    )
-    const id =
-      created?.id ??
-      onlyRow(
-        await db
-          .select({ id: sources.id })
-          .from(sources)
-          .where(and(eq(sources.kind, ref.kind), eq(sources.key, ref.key))),
-      ).id
-    sourceIds.push(id)
-    if (created) newSourceIds.push(id)
-  }
+  const existing = onlyRow(
+    await db
+      .select({ id: sources.id })
+      .from(sources)
+      .where(and(eq(sources.kind, ref.kind), eq(sources.key, ref.key))),
+  )
+  return { id: existing.id, created: false }
+}
 
+/** Links the widget to exactly these sources: stale links are removed and missing ones added. */
+async function setWidgetLinks(db: Db, widgetId: string, sourceIds: string[]): Promise<void> {
   const current = (
     await db
       .select({ sourceId: widgetSources.sourceId })
@@ -111,8 +112,25 @@ export async function linkWidgetSources(
   for (const sourceId of sourceIds.filter((id) => !current.includes(id))) {
     await db.insert(widgetSources).values({ widgetId, sourceId })
   }
+}
 
-  return { sourceIds, newSourceIds }
+/** Makes the widget's source links match `refs`, creating any sources that are new. */
+export async function linkWidgetSources(
+  db: Db,
+  widgetId: string,
+  refs: SourceRef[],
+  now: Date,
+): Promise<{ sourceIds: string[]; newSourceIds: string[] }> {
+  const ensured: { id: string; created: boolean }[] = []
+  // One at a time: the inserts share a transaction.
+  for (const ref of refs) ensured.push(await ensureSource(db, ref, now))
+
+  const sourceIds = ensured.map((source) => source.id)
+  await setWidgetLinks(db, widgetId, sourceIds)
+  return {
+    sourceIds,
+    newSourceIds: ensured.filter((source) => source.created).map((source) => source.id),
+  }
 }
 
 /** The next free spot: left edge, below everything already on the dashboard. */
@@ -153,7 +171,25 @@ export async function ownedWidget(
   )?.widget
 }
 
-type WidgetRow = typeof widgets.$inferSelect
+/** The user's dashboard with this id, or a 404. */
+export async function requireDashboard(
+  db: Db,
+  userId: string,
+  id: string,
+): Promise<typeof dashboards.$inferSelect> {
+  const dashboard = await ownedDashboard(db, userId, id)
+  if (!dashboard) throw notFound('Dashboard')
+  return dashboard
+}
+
+/** The user's widget with this id, or a 404. */
+export async function requireWidget(db: Db, userId: string, id: string): Promise<WidgetRow> {
+  const widget = await ownedWidget(db, userId, id)
+  if (!widget) throw notFound('Widget')
+  return widget
+}
+
+export type WidgetRow = typeof widgets.$inferSelect
 
 /** A widget as the API returns it: the grid position grouped under `layout`. */
 export type WidgetDto = Omit<WidgetRow, 'x' | 'y' | 'w' | 'h'> & { layout: Layout }

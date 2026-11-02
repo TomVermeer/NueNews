@@ -1,9 +1,11 @@
 import { getTableName, is, sql } from 'drizzle-orm'
 import { PgTable } from 'drizzle-orm/pg-core'
-import { afterAll, vi } from 'vitest'
+import { testClient } from 'hono/testing'
+import { afterAll, expect, vi } from 'vitest'
+import { z } from 'zod'
 import { createApp } from '../app'
 import type { AppDeps } from '../context'
-import type { NormalizedItem, SourceKind } from '@nuenews/shared'
+import type { ApiErrorBody, createWidgetSchema, NormalizedItem, SourceKind } from '@nuenews/shared'
 import { createDb, type Database, type Db } from '../db/client'
 import { onlyRow } from '../db/query'
 import * as schema from '../db/schema'
@@ -132,16 +134,49 @@ export async function createTestApp(
   delete (deps as { registryKinds?: unknown }).registryKinds
   const app = createApp(deps)
 
-  /** Calls the API under /api/v1 and parses the JSON response. */
-  async function call(method: string, path: string, body?: unknown) {
-    const res = await app.request(`/api/v1${path}`, {
+  /**
+   * Sends a raw request under /api/v1. Only for input the typed client would refuse to send,
+   * such as invalid bodies; everything else goes through `client`.
+   */
+  async function send(method: string, path: string, body?: unknown): Promise<Response> {
+    return await app.request(`/api/v1${path}`, {
       method,
       headers: body === undefined ? undefined : { 'content-type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
-    const text = await res.text()
-    return { status: res.status, body: text ? (JSON.parse(text) as any) : null }
   }
 
-  return { app, db, deps, userId, fetch, call }
+  /** The API under /api/v1 as the web app sees it, with response bodies typed from the routes. */
+  const client = testClient(app).api.v1
+
+  return { app, db, deps, userId, fetch, client, send }
+}
+
+export type TestApp = Awaited<ReturnType<typeof createTestApp>>
+
+/** What POST /dashboards/:id/widgets accepts, before defaults are filled in. */
+export type CreateWidgetInput = z.input<typeof createWidgetSchema>
+
+/** Creates a dashboard through the API and returns its id. */
+export async function newDashboard(t: TestApp, name = 'Home'): Promise<string> {
+  const response = await t.client.dashboards.$post({ json: { name } })
+  expect(response.status).toBe(201)
+  return (await response.json()).id
+}
+
+/** POST /dashboards/:id/widgets through the typed client. */
+export async function addWidget(t: TestApp, dashboardId: string, widget: CreateWidgetInput) {
+  return await t.client.dashboards[':id'].widgets.$post({
+    param: { id: dashboardId },
+    json: widget,
+  })
+}
+
+const apiErrorBodySchema = z.strictObject({
+  error: z.strictObject({ code: z.string(), message: z.string() }),
+})
+
+/** The body of an error response, checked to be exactly the API's `{ error: { code, message } }`. */
+export async function errorOf(response: { json(): Promise<unknown> }): Promise<ApiErrorBody> {
+  return apiErrorBodySchema.parse(await response.json())
 }

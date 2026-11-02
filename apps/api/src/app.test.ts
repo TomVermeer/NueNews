@@ -1,20 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { users } from './db/schema'
-import { createTestApp } from './test/helpers'
+import { createTestApp, errorOf } from './test/helpers'
 
 describe('GET /api/v1/health', () => {
   it('returns ok', async () => {
-    const { call } = await createTestApp()
-    expect(await call('GET', '/health')).toEqual({ status: 200, body: { status: 'ok' } })
+    const { client } = await createTestApp()
+    const res = await client.health.$get()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'ok' })
   })
 })
 
 describe('unknown routes', () => {
   it('return a JSON 404 in the standard error shape', async () => {
-    const { call } = await createTestApp()
-    expect(await call('GET', '/nope')).toEqual({
-      status: 404,
-      body: { error: { code: 'not_found', message: 'No such route' } },
+    const { send } = await createTestApp()
+    const res = await send('GET', '/nope')
+    expect(res.status).toBe(404)
+    expect(await errorOf(res)).toEqual({
+      error: { code: 'not_found', message: 'No such route' },
     })
   })
 })
@@ -33,19 +36,22 @@ describe('invalid JSON bodies', () => {
 
 describe('GET /api/v1/widget-types', () => {
   it('lists every widget type with its JSON Schema and availability', async () => {
-    const { call } = await createTestApp()
-    const { status, body } = await call('GET', '/widget-types')
-    expect(status).toBe(200)
-    expect(body.types.map((t: { type: string }) => t.type).sort()).toEqual([
+    const { client } = await createTestApp()
+    const res = await client['widget-types'].$get()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.types.map((t) => t.type).sort()).toEqual([
       'feed',
       'royalroad',
       'weather',
       'youtube',
     ])
-    const feed = body.types.find((t: { type: string }) => t.type === 'feed')
+    const feed = body.types.find((t) => t.type === 'feed')
     expect(feed).toMatchObject({ available: true, defaultSize: { w: 4, h: 6 } })
-    expect(feed.configSchema.properties).toHaveProperty('sources')
-    expect(body.types.find((t: { type: string }) => t.type === 'royalroad').available).toBe(false)
+    expect(feed?.configSchema).toHaveProperty('properties.sources')
+    const royalroad = body.types.find((t) => t.type === 'royalroad')
+    expect(royalroad).toBeDefined()
+    expect(royalroad?.available).toBe(false)
   })
 })
 
@@ -53,21 +59,25 @@ describe('authentication', () => {
   const signedOut = { authenticate: async () => undefined }
 
   it('answers 401 in the standard error shape when nobody is signed in', async () => {
-    const { call } = await createTestApp({}, signedOut)
-    const expected = {
-      status: 401,
-      body: { error: { code: 'unauthorized', message: 'Sign in to continue' } },
+    const { client, send } = await createTestApp({}, signedOut)
+    const expectUnauthorized = async (res: { status: number; json(): Promise<unknown> }) => {
+      expect(res.status).toBe(401)
+      expect(await errorOf(res)).toEqual({
+        error: { code: 'unauthorized', message: 'Sign in to continue' },
+      })
     }
-    expect(await call('GET', '/dashboards')).toEqual(expected)
-    expect(await call('POST', '/dashboards', { name: 'Home' })).toEqual(expected)
-    expect(await call('GET', '/widgets/anything/data')).toEqual(expected)
+    await expectUnauthorized(await client.dashboards.$get())
+    await expectUnauthorized(await client.dashboards.$post({ json: { name: 'Home' } }))
+    await expectUnauthorized(await client.widgets[':id'].data.$get({ param: { id: 'anything' } }))
     // Unknown paths do not reveal which routes exist.
-    expect(await call('GET', '/nope')).toEqual(expected)
+    await expectUnauthorized(await send('GET', '/nope'))
   })
 
   it('keeps /health public, so a host can check that the API is up', async () => {
-    const { call } = await createTestApp({}, signedOut)
-    expect(await call('GET', '/health')).toEqual({ status: 200, body: { status: 'ok' } })
+    const { client } = await createTestApp({}, signedOut)
+    const res = await client.health.$get()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'ok' })
   })
 
   it('serves each signed-in user only their own data', async () => {
@@ -82,20 +92,16 @@ describe('authentication', () => {
       { id: 'alice', name: 'Alice' },
       { id: 'bob', name: 'Bob' },
     ])
-    const as = (user: string, method: string, path: string, body?: unknown) =>
-      t.app.request(`/api/v1${path}`, {
-        method,
-        headers: { 'x-user': user, 'content-type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      })
+    const as = (user: string) => ({ headers: { 'x-user': user } })
+    const dashboard = t.client.dashboards[':id']
 
-    const created = await as('alice', 'POST', '/dashboards', { name: 'Alice home' })
-    const { id } = (await created.json()) as { id: string }
+    const created = await t.client.dashboards.$post({ json: { name: 'Alice home' } }, as('alice'))
+    const { id } = await created.json()
 
-    const bobList = await (await as('bob', 'GET', '/dashboards')).json()
+    const bobList = await (await t.client.dashboards.$get({}, as('bob'))).json()
     expect(bobList).toEqual({ dashboards: [] })
-    expect((await as('bob', 'GET', `/dashboards/${id}`)).status).toBe(404)
-    expect((await as('bob', 'DELETE', `/dashboards/${id}`)).status).toBe(404)
-    expect((await as('alice', 'GET', `/dashboards/${id}`)).status).toBe(200)
+    expect((await dashboard.$get({ param: { id } }, as('bob'))).status).toBe(404)
+    expect((await dashboard.$delete({ param: { id } }, as('bob'))).status).toBe(404)
+    expect((await dashboard.$get({ param: { id } }, as('alice'))).status).toBe(200)
   })
 })
