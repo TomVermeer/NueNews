@@ -37,6 +37,34 @@ export function widgetRoutes(deps: AppDeps) {
         .where(eq(widgetSources.widgetId, widgetId))
     ).map((row) => row.id)
 
+  const latestItems = async (userId: string, sourceIds: string[], limit: number) => {
+    if (sourceIds.length === 0) return []
+    return db
+      .select({
+        id: items.id,
+        sourceId: items.sourceId,
+        title: items.title,
+        url: items.url,
+        excerpt: items.excerpt,
+        imageUrl: items.imageUrl,
+        author: items.author,
+        publishedAt: items.publishedAt,
+        seenAt: itemState.seenAt,
+        readAt: itemState.readAt,
+      })
+      .from(items)
+      .leftJoin(itemState, and(eq(itemState.itemId, items.id), eq(itemState.userId, userId)))
+      .where(inArray(items.sourceId, sourceIds))
+      .orderBy(desc(items.publishedAt))
+      .limit(limit)
+  }
+
+  // The newest `limit` items of every source, merged newest first.
+  const latestItemsPerSource = async (userId: string, sourceIds: string[], limit: number) => {
+    const perSource = await Promise.all(sourceIds.map((id) => latestItems(userId, [id], limit)))
+    return perSource.flat().sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+  }
+
   return new Hono<Env>()
     .patch('/:id', validate('json', updateWidgetSchema), async (c) => {
       const widget = await owned(c.get('userId'), c.req.param('id'))
@@ -123,30 +151,12 @@ export function widgetRoutes(deps: AppDeps) {
         .where(inArray(sources.id, await sourceIdsOf(widget.id)))
       const byId = new Map(sourceRows.map((row) => [row.id, row]))
 
+      // A feed shares its limit across all its sources; a YouTube widget applies it per channel.
+      const sourceIds = [...byId.keys()]
       const rows =
-        sourceRows.length === 0
-          ? []
-          : await db
-              .select({
-                id: items.id,
-                sourceId: items.sourceId,
-                title: items.title,
-                url: items.url,
-                excerpt: items.excerpt,
-                imageUrl: items.imageUrl,
-                author: items.author,
-                publishedAt: items.publishedAt,
-                seenAt: itemState.seenAt,
-                readAt: itemState.readAt,
-              })
-              .from(items)
-              .leftJoin(
-                itemState,
-                and(eq(itemState.itemId, items.id), eq(itemState.userId, userId)),
-              )
-              .where(inArray(items.sourceId, [...byId.keys()]))
-              .orderBy(desc(items.publishedAt))
-              .limit(config.limit)
+        widget.type === 'youtube'
+          ? await latestItemsPerSource(userId, sourceIds, config.limit)
+          : await latestItems(userId, sourceIds, config.limit)
 
       return c.json({
         widget: { id: widget.id, type: widget.type, title: widget.title },

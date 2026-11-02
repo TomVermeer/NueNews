@@ -11,10 +11,10 @@ async function dashboard(t: Awaited<ReturnType<typeof createTestApp>>) {
   return (await t.call('POST', '/dashboards', { name: 'Home' })).body.id as string
 }
 
-const youtubeWidget = (channels: { input: string; label?: string }[]) => ({
+const youtubeWidget = (channels: { input: string; label?: string }[], limit?: number) => ({
   type: 'youtube',
   title: 'Videos',
-  config: { channels },
+  config: { channels, ...(limit === undefined ? {} : { limit }) },
 })
 
 describe('YouTube widgets', () => {
@@ -80,6 +80,37 @@ describe('YouTube widgets', () => {
     expect(body.items).toHaveLength(1)
     expect(body.items[0]).toMatchObject({ title: 'Newest video', sourceName: 'Fireship' })
     expect(body.sources[0]).toMatchObject({ title: 'Fireship', error: null })
+  })
+
+  it('applies the limit to each channel, so a busy channel cannot crowd out the others', async () => {
+    const busy = `UC${'a'.repeat(22)}`
+    const quiet = `UC${'b'.repeat(22)}`
+    const uploads: Record<string, number[]> = { [busy]: [20, 21, 22, 23, 24], [quiet]: [10, 11] }
+    const t = await createTestApp({
+      fetch: (source) => ({
+        status: 'ok',
+        items: (uploads[source.key] ?? []).map((day) =>
+          item(day, { externalId: `${source.key}-${day}`, title: `${source.key[2]} day ${day}` }),
+        ),
+        title: 'Channel name',
+      }),
+    })
+    const id = await dashboard(t)
+    const created = await t.call(
+      'POST',
+      `/dashboards/${id}/widgets`,
+      youtubeWidget([{ input: busy }, { input: quiet }], 2),
+    )
+
+    const { status, body } = await t.call('GET', `/widgets/${created.body.id}/data`)
+
+    expect(status).toBe(200)
+    expect(body.items.map((video: { title: string }) => video.title)).toEqual([
+      'a day 24',
+      'a day 23',
+      'b day 11',
+      'b day 10',
+    ])
   })
 
   it('can be resolved through /sources/resolve', async () => {
