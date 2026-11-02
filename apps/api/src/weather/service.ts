@@ -4,7 +4,7 @@ import type { Db } from '../db/client'
 import { firstRow } from '../db/query'
 import { weatherCache } from '../db/schema'
 import type { HttpClient } from '../lib/http'
-import { parseRetryAfter, ProviderError } from '../providers/errors'
+import { assertOk, ProviderError } from '../providers/errors'
 import { forecastUrl, parseForecast, type Units } from './metNo'
 import { geocodeUrl, parseGeocoding } from './openMeteo'
 
@@ -27,12 +27,7 @@ type CachedWeather = typeof weatherCache.$inferSelect
 
 async function getJson(http: HttpClient, url: string): Promise<unknown> {
   const res = await http.get(url, { headers: { accept: 'application/json' } })
-  if (res.status < 200 || res.status >= 300) {
-    throw new ProviderError(`The weather service answered with HTTP ${res.status}`, {
-      status: res.status,
-      retryAfterSeconds: parseRetryAfter(res.headers.get('retry-after')),
-    })
-  }
+  assertOk(res, { service: 'The weather service' })
   try {
     return JSON.parse(res.body)
   } catch {

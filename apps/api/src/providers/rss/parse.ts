@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser'
 import { normalizedItemSchema, type NormalizedItem } from '@nuenews/shared'
 import { errorMessage } from '../../lib/errors'
+import { ProviderError } from '../errors'
 import { decodeEntities, htmlToText, makeExcerpt, truncate } from '../../lib/text'
 
 export class FeedParseError extends Error {
@@ -160,6 +161,35 @@ function normalizeItem(raw: Node, base: string, now: Date): NormalizedItem | und
 
   const result = normalizedItemSchema.safeParse(candidate)
   return result.success ? result.data : undefined
+}
+
+/** A downloaded document: its body and the address it finally came from. */
+interface Downloaded {
+  readonly body: string
+  readonly url: string
+}
+
+/**
+ * Parses a downloaded feed. A body that is not a feed becomes a ProviderError the user can see,
+ * with `message` or else the parser's own explanation.
+ */
+export function readFeed(response: Downloaded, now: Date, message?: string): ParsedFeed {
+  try {
+    return parseFeed(response.body, response.url, now)
+  } catch (error) {
+    if (error instanceof FeedParseError) throw new ProviderError(message ?? error.message)
+    throw error
+  }
+}
+
+/** Parses a downloaded feed, or returns undefined when the body is not a feed. */
+export function tryReadFeed(response: Downloaded, now: Date): ParsedFeed | undefined {
+  try {
+    return parseFeed(response.body, response.url, now)
+  } catch (error) {
+    if (error instanceof FeedParseError) return undefined
+    throw error
+  }
 }
 
 /** Parses an RSS 2.0, RSS 1.0 (RDF) or Atom document into normalized items. */

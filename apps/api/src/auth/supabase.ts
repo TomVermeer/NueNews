@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose'
 import type { Db } from '../db/client'
 import { users } from '../db/schema'
+import { bearerToken } from './bearer'
 import type { Authenticator } from './types'
 
 export interface SupabaseAuthOptions {
@@ -38,8 +39,8 @@ export function createSupabaseAuthenticator(options: SupabaseAuthOptions): Authe
   }
 
   return async (headers) => {
-    const [scheme, token] = (headers.get('authorization') ?? '').split(' ')
-    if (scheme?.toLowerCase() !== 'bearer' || !token) return undefined
+    const token = bearerToken(headers.get('authorization'))
+    if (!token) return undefined
 
     try {
       const verified = { issuer, audience: 'authenticated' }

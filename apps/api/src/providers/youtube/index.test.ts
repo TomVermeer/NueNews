@@ -9,6 +9,7 @@ import {
   channelUrlFor,
   feedUrlFor,
   iconFromPage,
+  isConsentPage,
   pageUrlFromInput,
   youtubeProvider,
 } from './index'
@@ -36,6 +37,14 @@ function contextFor(routes: Record<string, Route>) {
   const ctx: FetchContext = { http: { get }, now: () => NOW }
   return { ctx, get }
 }
+
+describe('isConsentPage', () => {
+  it('recognises the cookie consent wall by its host', () => {
+    expect(isConsentPage('https://consent.youtube.com/m?continue=x')).toBe(true)
+    expect(isConsentPage('https://www.youtube.com/@Example')).toBe(false)
+    expect(isConsentPage('https://www.youtube.com/consent.')).toBe(false)
+  })
+})
 
 describe('channelIdFromInput', () => {
   it.each([

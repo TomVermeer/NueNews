@@ -9,7 +9,7 @@ import {
 import type { AppDeps } from '../context'
 import { onlyRow } from '../db/query'
 import { widgets } from '../db/schema'
-import { ApiError } from '../http'
+import { ApiError, formatIssues } from '../http'
 import { refreshSourcesNow } from './refreshNow'
 import {
   AVAILABLE_WIDGET_TYPES,
@@ -81,9 +81,7 @@ function parseConfig(widget: WidgetRow, config: unknown): Record<string, unknown
   const parsed = widgetConfigSchemas[widget.type].safeParse(config)
   if (parsed.success) return parsed.data
 
-  const message = parsed.error.issues
-    .map((issue) => `config.${issue.path.join('.')}: ${issue.message}`)
-    .join('; ')
+  const message = formatIssues(parsed.error.issues, (path) => `config.${path}`)
   throw new ApiError(400, 'invalid_config', message)
 }
 
