@@ -4,7 +4,7 @@ import { feedConfigSchema, youtubeConfigSchema } from '@nuenews/shared'
 import type { Db } from '../db/client'
 import { firstRow, onlyRow } from '../db/query'
 import { dashboards, sources, widgetSources, widgets } from '../db/schema'
-import { ApiError } from '../http'
+import { ApiError, notFound } from '../http'
 import { checkUrl } from '../lib/ssrf'
 import { channelIdFromInput } from '../providers/youtube'
 
@@ -153,7 +153,25 @@ export async function ownedWidget(
   )?.widget
 }
 
-type WidgetRow = typeof widgets.$inferSelect
+/** The user's dashboard with this id, or a 404. */
+export async function requireDashboard(
+  db: Db,
+  userId: string,
+  id: string,
+): Promise<typeof dashboards.$inferSelect> {
+  const dashboard = await ownedDashboard(db, userId, id)
+  if (!dashboard) throw notFound('Dashboard')
+  return dashboard
+}
+
+/** The user's widget with this id, or a 404. */
+export async function requireWidget(db: Db, userId: string, id: string): Promise<WidgetRow> {
+  const widget = await ownedWidget(db, userId, id)
+  if (!widget) throw notFound('Widget')
+  return widget
+}
+
+export type WidgetRow = typeof widgets.$inferSelect
 
 /** A widget as the API returns it: the grid position grouped under `layout`. */
 export type WidgetDto = Omit<WidgetRow, 'x' | 'y' | 'w' | 'h'> & { layout: Layout }

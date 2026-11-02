@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
 import type { updateWidgetSchema } from '@nuenews/shared'
 import { itemState, sources, users, widgetSources, widgets } from '../db/schema'
+import { onlyRow } from '../db/query'
 import { ProviderError } from '../providers/errors'
 import {
   addWidget,
@@ -125,6 +126,47 @@ describe('GET /widgets/:id/data', () => {
     const res = await t.client.widgets[':id'].data.$get({ param: { id: 'nope' } })
     expect(res.status).toBe(404)
   })
+
+  it('returns no items for a feed widget without sources', async () => {
+    const t = await createTestApp()
+    const dashboardId = await newDashboard(t)
+    const widget = onlyRow(
+      await t.db
+        .insert(widgets)
+        .values({
+          dashboardId,
+          type: 'feed',
+          title: 'Empty',
+          config: { sources: [{ url: 'https://a.example/feed' }] },
+        })
+        .returning(),
+    )
+    const body = await feedData(t, widget.id)
+    expect(body).toEqual({
+      widget: { id: widget.id, type: 'feed', title: 'Empty' },
+      items: [],
+      sources: [],
+    })
+  })
+
+  it('refuses data for widget types that have no provider yet', async () => {
+    const t = await createTestApp()
+    const dashboardId = await newDashboard(t)
+    const widget = onlyRow(
+      await t.db
+        .insert(widgets)
+        .values({ dashboardId, type: 'royalroad', title: 'Chapters', config: {} })
+        .returning(),
+    )
+    const res = await t.client.widgets[':id'].data.$get({ param: { id: widget.id } })
+    expect(res.status).toBe(422)
+    expect(await errorOf(res)).toEqual({
+      error: {
+        code: 'widget_type_unavailable',
+        message: 'The "royalroad" widget is not available yet',
+      },
+    })
+  })
 })
 
 describe('item state', () => {
@@ -208,6 +250,33 @@ describe('PATCH /widgets/:id', () => {
     const id = await widgetWith(t, ['https://a.example/feed'])
     const res = await patchWidget(t, id, { title: 'Renamed' })
     expect(await res.json()).toMatchObject({ id, title: 'Renamed' })
+  })
+
+  it('leaves the sources alone when only the title changes', async () => {
+    const t = await createTestApp(threeItemsPerSource)
+    const id = await widgetWith(t, ['https://a.example/feed'])
+    const before = await t.db.select().from(widgetSources)
+
+    await patchWidget(t, id, { title: 'Renamed' })
+
+    expect(await t.db.select().from(widgetSources)).toEqual(before)
+    expect(t.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('stores the config with its defaults filled in', async () => {
+    const t = await createTestApp(threeItemsPerSource)
+    const id = await widgetWith(t, ['https://a.example/feed'])
+    const res = await patchWidget(t, id, {
+      config: { sources: [{ url: 'https://a.example/feed' }], limit: 9 },
+    })
+    expect((await res.json()).config).toEqual({
+      sources: [{ url: 'https://a.example/feed' }],
+      limit: 9,
+      excerpt: 'compact',
+      showImages: true,
+      unreadDots: false,
+      variant: 'cards',
+    })
   })
 
   it('adds and removes sources when the config changes, keeping the shared source rows', async () => {
