@@ -10,6 +10,7 @@ import Database from 'better-sqlite3'
 import { createDb } from '../src/db/client'
 import { importSqlite } from '../src/db/importSqlite'
 import { LOCAL_USER_ID } from '../src/db/seed'
+import { readEnv } from '../src/env'
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--')
 const sqlitePath = args.find((arg) => !arg.startsWith('--'))
@@ -21,7 +22,7 @@ if (!sqlitePath || (userFlag >= 0 && !newUserId)) {
   process.exit(1)
 }
 
-const target = process.env.DATABASE_URL ?? './data/pglite'
+const target = readEnv(process.env).databaseLocation
 const source = new Database(sqlitePath, { readonly: true, fileMustExist: true })
 const { db, close } = await createDb(target)
 
