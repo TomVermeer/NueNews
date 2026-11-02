@@ -8,6 +8,10 @@
   --color-ink: #e6e8ee;
   --color-ink-muted: #8b92a5;
   --color-accent: #7c8cff;
+
+  /* Material window size classes: compact < 600px, medium 600-839px, expanded >= 840px. */
+  --breakpoint-medium: 600px;
+  --breakpoint-expanded: 840px;
 }
 
 :root {
@@ -73,7 +77,7 @@ body {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-ink transition-colors hover:bg-line focus-visible:outline-2 focus-visible:outline-accent;
+    @apply relative inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-ink transition-colors hover:bg-line focus-visible:outline-2 focus-visible:outline-accent;
   }
   .btn-primary {
     @apply border-accent bg-accent text-canvas hover:bg-accent/85;
@@ -82,13 +86,38 @@ body {
     @apply border-transparent text-ink-muted hover:text-ink;
   }
   .icon-btn {
-    @apply inline-flex size-7 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent;
+    @apply relative inline-flex size-7 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-line hover:text-ink focus-visible:outline-2 focus-visible:outline-accent;
   }
   .field {
     @apply w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none;
   }
   .field-label {
     @apply mb-1 block text-xs text-ink-muted;
+  }
+  /* A tab or chip that is not a button but still needs a touch-sized hit area. */
+  .tap-area {
+    @apply relative;
+  }
+
+  /* Touch screens: controls keep their look but get a 48px hit area (an invisible ::after), and
+     fields use 16px text, because iOS Safari zooms the page in on focus below that. */
+  @media (pointer: coarse) {
+    .btn::after,
+    .tap-area::after {
+      content: '';
+      position: absolute;
+      inset: -0.5rem 0;
+    }
+    .icon-btn::after {
+      content: '';
+      position: absolute;
+      inset: -0.625rem;
+    }
+    .field {
+      min-height: 3rem;
+      font-size: 1rem;
+      line-height: 1.5rem;
+    }
   }
 }
 

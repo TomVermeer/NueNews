@@ -13,6 +13,7 @@ import type { WidgetDto } from '../api/types'
 import AddWidgetPanel from '../components/AddWidgetPanel.vue'
 import DashboardGrid from '../components/DashboardGrid.vue'
 import TopBar from '../components/TopBar.vue'
+import { useCompactLayout } from '../composables/useCompactLayout'
 import { useLayoutDraft } from '../composables/useLayoutDraft'
 import { useAuthStore } from '../stores/auth'
 import { useEditorStore } from '../stores/editor'
@@ -40,6 +41,12 @@ watch(
   },
   { immediate: true },
 )
+
+// The layout is only edited on the grid, so a screen that turns narrow ends edit mode.
+const compact = useCompactLayout()
+watch(compact, (isCompact) => {
+  if (isCompact) editor.stopEditing()
+})
 
 const dashboardQuery = useDashboardQuery(activeId)
 const widgets = computed(() => dashboardQuery.data.value?.widgets ?? [])
@@ -69,6 +76,9 @@ async function refreshWidgets(list: WidgetDto[]) {
   refreshingIds.value = refreshingIds.value.filter((id) => !list.some((w) => w.id === id))
   updatedAt.value = new Date()
 }
+
+// On a narrow screen there is no edit mode, so adding a widget stays in view mode.
+const addWidget = () => editor.openAddPanel({ keepViewMode: compact.value })
 
 async function save() {
   if (!activeId.value) return
@@ -144,6 +154,7 @@ const firstName = ref('Home')
       :dashboards="dashboards"
       :active-id="activeId"
       :editing="editing"
+      :compact="compact"
       :dirty="draft.dirty.value"
       :saving="widgetMutations.saveLayout.isPending.value"
       :refreshing="refreshingIds.length > 0"
@@ -154,7 +165,7 @@ const firstName = ref('Home')
       @cancel="cancel"
       @save="save"
       @refresh="refreshWidgets(widgets)"
-      @add-widget="editor.openAddPanel()"
+      @add-widget="addWidget"
       @create-dashboard="createDashboard"
       @rename-dashboard="(id, name) => dashboardMutations.rename.mutate({ id, name })"
       @delete-dashboard="deleteDashboard"
@@ -174,9 +185,7 @@ const firstName = ref('Home')
     >
       <h1 class="text-lg font-medium">This dashboard is empty</h1>
       <p class="mt-2 text-sm text-ink-muted">Add a feed, a YouTube channel or the weather.</p>
-      <button type="button" class="btn btn-primary mt-6" @click="editor.openAddPanel()">
-        Add a widget
-      </button>
+      <button type="button" class="btn btn-primary mt-6" @click="addWidget">Add a widget</button>
     </div>
 
     <DashboardGrid
@@ -184,6 +193,7 @@ const firstName = ref('Home')
       v-model:layout="draft.layout.value"
       :widgets="widgets"
       :editing="editing"
+      :compact="compact"
       :refreshing-ids="refreshingIds"
       @refresh="(widget) => refreshWidgets([widget])"
       @settings="(widget) => editor.openSettings(widget.id)"

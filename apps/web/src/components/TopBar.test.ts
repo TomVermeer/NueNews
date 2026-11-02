@@ -16,6 +16,7 @@ const base = {
   saving: false,
   refreshing: false,
   updatedAt: null as Date | null,
+  compact: false,
 }
 
 const render = (props: Partial<typeof base> & { updatedAt?: Date | null } = {}) =>
@@ -23,6 +24,12 @@ const render = (props: Partial<typeof base> & { updatedAt?: Date | null } = {}) 
 
 const button = (wrapper: { findAll: (s: string) => any[] }, text: string) =>
   wrapper.findAll('button').find((b) => b.text().includes(text))
+
+const getButton = (wrapper: { findAll: (s: string) => any[] }, text: string) => {
+  const found = button(wrapper, text)
+  if (!found) throw new Error(`There is no "${text}" button`)
+  return found
+}
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -37,6 +44,18 @@ describe('TopBar tabs', () => {
     expect(links[0]!.attributes('href')).toBe('/d/d1')
     expect(links[0]!.attributes('aria-current')).toBe('page')
     expect(links[1]!.attributes('aria-current')).toBeUndefined()
+  })
+
+  it('keeps the tabs in one row that scrolls sideways when they do not fit', async () => {
+    const { wrapper } = await render()
+    const nav = wrapper.get('nav')
+    // py-2 (8px each side) leaves room for the 48px touch hit area of the 32px tabs.
+    expect(nav.classes()).toEqual(
+      expect.arrayContaining(['flex-nowrap', 'overflow-x-auto', 'py-2', '[scrollbar-width:none]']),
+    )
+    for (const link of wrapper.findAll('nav a')) {
+      expect(link.classes()).toEqual(expect.arrayContaining(['shrink-0', 'whitespace-nowrap']))
+    }
   })
 
   it('creates a dashboard from the plus button', async () => {
@@ -87,6 +106,33 @@ describe('TopBar in view mode', () => {
     ).toBeDefined()
     const none = await render({ activeId: undefined })
     expect(button(none.wrapper, 'Edit layout')!.attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('TopBar on a compact screen', () => {
+  it('has no layout editing, but offers adding a widget', async () => {
+    const { wrapper } = await render({ compact: true })
+    expect(button(wrapper, 'Edit layout')).toBeUndefined()
+
+    await getButton(wrapper, 'Add widget').trigger('click')
+    expect(wrapper.emitted('add-widget')).toHaveLength(1)
+    expect(wrapper.emitted('edit')).toBeUndefined()
+  })
+
+  it('still offers refresh and the dashboard tabs', async () => {
+    const { wrapper } = await render({ compact: true })
+    expect(wrapper.find('[aria-label="Refresh all widgets"]').exists()).toBe(true)
+    expect(wrapper.findAll('nav a').map((link) => link.text())).toEqual(['Home', 'Reading'])
+  })
+
+  it('disables adding a widget when there is no dashboard', async () => {
+    const { wrapper } = await render({ compact: true, activeId: undefined })
+    expect(getButton(wrapper, 'Add widget').attributes('disabled')).toBeDefined()
+  })
+
+  it('does not show an add button in view mode on a wide screen', async () => {
+    const { wrapper } = await render({ compact: false })
+    expect(button(wrapper, 'Add widget')).toBeUndefined()
   })
 })
 

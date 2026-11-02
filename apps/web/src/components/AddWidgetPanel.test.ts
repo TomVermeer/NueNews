@@ -27,6 +27,13 @@ describe('AddWidgetPanel (adding)', () => {
     expect(wrapper.find('footer').exists()).toBe(false)
   })
 
+  it('fills the screen on a narrow window and is a side sheet from 600px', async () => {
+    const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
+    expect(wrapper.get('[role="dialog"]').classes()).toEqual(
+      expect.arrayContaining(['w-full', 'h-dvh', 'medium:max-w-md']),
+    )
+  })
+
   it('shows the form of the chosen type and can go back', async () => {
     const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
     await button(wrapper, 'Weather').trigger('click')

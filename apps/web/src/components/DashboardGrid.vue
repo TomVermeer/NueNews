@@ -4,13 +4,14 @@ import { computed } from 'vue'
 import { GRID_COLUMNS, type WidgetColor } from '@nuenews/shared'
 import type { WidgetDto } from '../api/types'
 import type { GridItemData } from '../composables/useLayoutDraft'
-import { widgetIcon } from '../lib/widgetTypes'
-import WidgetBody from '../widgets/WidgetBody.vue'
-import WidgetFrame from '../widgets/WidgetFrame.vue'
+import { readingOrder } from '../lib/readingOrder'
+import DashboardWidget from './DashboardWidget.vue'
 
 const props = defineProps<{
   widgets: WidgetDto[]
   editing: boolean
+  /** Show the widgets in one column instead of on the grid. */
+  compact?: boolean
   refreshingIds?: string[]
 }>()
 
@@ -24,22 +25,54 @@ defineEmits<{
   color: [widget: WidgetDto, color: WidgetColor | null]
 }>()
 
+// The grid only shows from the expanded size class (840px) up, where cards are 24px apart.
+const GRID_GAP = 24
+
 const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, widget])))
+
+function withWidgets(items: readonly GridItemData[]) {
+  return items.flatMap((item) => {
+    const widget = byId.value.get(item.i)
+    return widget ? [{ item, widget }] : []
+  })
+}
+
+const placed = computed(() => withWidgets(layout.value))
+// Only the order of the saved layout is used; the stack never changes it.
+const stacked = computed(() => withWidgets(readingOrder(layout.value)))
 </script>
 
 <template>
+  <div v-if="compact" class="flex flex-col gap-4">
+    <DashboardWidget
+      v-for="{ item, widget } in stacked"
+      :key="item.i"
+      :widget="widget"
+      :editing="false"
+      :refreshing="refreshingIds?.includes(item.i)"
+      @refresh="$emit('refresh', widget)"
+      @settings="$emit('settings', widget)"
+      @remove="$emit('remove', widget)"
+      @rename="(title) => $emit('rename', widget, title)"
+      @color="(color) => $emit('color', widget, color)"
+    />
+  </div>
+
+  <!-- The library also insets the whole grid by the gap; -m-6 (24px) cancels that. -->
   <GridLayout
+    v-else
     v-model:layout="layout"
+    class="-m-6"
     :col-num="GRID_COLUMNS"
     :row-height="56"
-    :margin="[16, 16]"
+    :margin="[GRID_GAP, GRID_GAP]"
     :is-draggable="editing"
     :is-resizable="editing"
     vertical-compact
     use-css-transforms
   >
     <GridItem
-      v-for="item in layout"
+      v-for="{ item, widget } in placed"
       :key="item.i"
       :i="item.i"
       :x="item.x"
@@ -51,21 +84,16 @@ const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, wi
       drag-allow-from=".drag-handle"
       drag-ignore-from="input, textarea, select"
     >
-      <WidgetFrame
-        v-if="byId.get(item.i)"
-        :title="byId.get(item.i)!.title"
-        :icon="widgetIcon(byId.get(item.i)!.type)"
+      <DashboardWidget
+        :widget="widget"
         :editing="editing"
-        :color="byId.get(item.i)!.color"
         :refreshing="refreshingIds?.includes(item.i)"
-        @refresh="$emit('refresh', byId.get(item.i)!)"
-        @settings="$emit('settings', byId.get(item.i)!)"
-        @remove="$emit('remove', byId.get(item.i)!)"
-        @rename="(title) => $emit('rename', byId.get(item.i)!, title)"
-        @color="(color) => $emit('color', byId.get(item.i)!, color)"
-      >
-        <WidgetBody :widget="byId.get(item.i)!" />
-      </WidgetFrame>
+        @refresh="$emit('refresh', widget)"
+        @settings="$emit('settings', widget)"
+        @remove="$emit('remove', widget)"
+        @rename="(title) => $emit('rename', widget, title)"
+        @color="(color) => $emit('color', widget, color)"
+      />
     </GridItem>
   </GridLayout>
 </template>
