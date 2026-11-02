@@ -59,6 +59,25 @@ describe('AddWidgetPanel (adding)', () => {
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 
+  it('shows progress on the save button while saving', async () => {
+    fakeApi.on('POST sources/resolve', {
+      body: { kind: 'rss', key: 'https://a.example/f', title: 'A' },
+    })
+    fakeApi.on('POST dashboards/:id/widgets', () => new Promise(() => {}))
+    const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
+
+    await getButton(wrapper, 'Feed list').trigger('click')
+    expect(wrapper.get('footer .btn-primary').text()).toBe('Add widget')
+    await wrapper.get('input[aria-label="Feed address 1"]').setValue('a.example')
+    await getButton(wrapper, 'Look up').trigger('click')
+    await flushPromises()
+    await getButton(wrapper, 'Add widget').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('footer .btn-primary').text()).toBe('Saving…')
+    expect(wrapper.get('footer .btn-primary').attributes('disabled')).toBeDefined()
+  })
+
   it('does not call the server while the form has problems', async () => {
     const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
     await getButton(wrapper, 'Feed list').trigger('click')

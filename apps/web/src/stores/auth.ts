@@ -31,7 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function signIn(address: string, password: string) {
     if (!authClient) return
     const { data, error } = await authClient.auth.signInWithPassword({ email: address, password })
-    if (error) throw new Error(friendly(error.message))
+    if (error) throw new Error(signInErrorMessage(error.message))
     session.value = data.session
   }
 
@@ -44,7 +44,8 @@ export const useAuthStore = defineStore('auth', () => {
   return { configured, session, email, signedIn, init, signIn, signOut }
 })
 
-function friendly(message: string): string {
+/** A message fit for the sign-in form, from the error Supabase Auth gave. */
+function signInErrorMessage(message: string): string {
   return /invalid login credentials/i.test(message)
     ? 'That email and password do not match.'
     : 'Could not sign in. Try again in a moment.'

@@ -30,7 +30,7 @@ const autoTitle = useAutoTitle(
 
 const { query, results, searching, searchError, clear } = useGeocodeSearch()
 
-function describe(place: GeocodeResult) {
+function placeLabel(place: GeocodeResult) {
   return [place.name, place.region, place.country].filter(Boolean).join(', ')
 }
 
@@ -90,7 +90,7 @@ defineExpose({ submit })
             class="min-h-12 w-full px-3 py-2 text-left text-sm hover:bg-line"
             @click="choose(place)"
           >
-            {{ describe(place) }}
+            {{ placeLabel(place) }}
           </button>
         </li>
       </ul>

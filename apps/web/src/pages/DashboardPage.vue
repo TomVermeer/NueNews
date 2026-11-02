@@ -53,7 +53,7 @@ const widgetMutations = useWidgetMutations()
 const editingWidget = computed(() => {
   const current = panel.value
   if (current.mode !== 'edit') return undefined
-  return widgets.value.find((w) => w.id === current.widgetId)
+  return widgets.value.find((widget) => widget.id === current.widgetId)
 })
 
 const {
@@ -94,7 +94,7 @@ async function deleteDashboard(id: string) {
   void router.replace({ name: 'home' })
 }
 
-const firstName = ref('Home')
+const firstDashboardName = ref('Home')
 </script>
 
 <template>
@@ -122,8 +122,16 @@ const firstName = ref('Home')
     <p class="mt-2 text-sm text-ink-muted">
       A dashboard holds the widgets you arrange: feeds, videos and weather.
     </p>
-    <form class="mt-6 flex gap-2" @submit.prevent="createDashboard(firstName.trim() || 'Home')">
-      <input v-model="firstName" class="field" aria-label="Dashboard name" maxlength="60" />
+    <form
+      class="mt-6 flex gap-2"
+      @submit.prevent="createDashboard(firstDashboardName.trim() || 'Home')"
+    >
+      <input
+        v-model="firstDashboardName"
+        class="field"
+        aria-label="Dashboard name"
+        maxlength="60"
+      />
       <button type="submit" class="btn btn-primary shrink-0">Create dashboard</button>
     </form>
   </div>

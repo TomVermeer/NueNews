@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, toRef } from 'vue'
-import type { YouTubeConfig } from '@nuenews/shared'
+import { youtubeConfigSchema, type YouTubeConfig } from '@nuenews/shared'
 import { useAutoTitle } from '../../composables/useAutoTitle'
 import { useFormSubmit } from '../../composables/useFormSubmit'
 import { suggestTitle } from '../../lib/titles'
@@ -15,12 +15,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{ submit: [value: { title: string; config: YouTubeConfig }] }>()
 
+const DEFAULT_LIMIT = youtubeConfigSchema.shape.limit.parse(undefined)
+
 const form = reactive({
   title: props.initial?.title ?? 'YouTube',
   channels: (props.initial?.config.channels ?? [{ input: '' }]).map((channel) =>
     newSourceRow(channel.input, channel.label),
   ),
-  limit: props.initial?.config.limit ?? 3,
+  limit: props.initial?.config.limit ?? DEFAULT_LIMIT,
 })
 
 const autoTitle = useAutoTitle(

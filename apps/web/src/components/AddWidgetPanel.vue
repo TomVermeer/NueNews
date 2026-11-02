@@ -42,6 +42,16 @@ const type = computed<AddableWidgetType | null>(() =>
 )
 const saving = computed(() => mutations.create.isPending.value || mutations.update.isPending.value)
 
+const heading = computed(() => {
+  if (props.widget) return 'Widget settings'
+  return type.value ? WIDGET_TYPE_INFO[type.value].label : 'Add widget'
+})
+
+const saveLabel = computed(() => {
+  if (saving.value) return 'Saving…'
+  return props.widget ? 'Save changes' : 'Add widget'
+})
+
 interface ConfigSchema<T> {
   safeParse(value: unknown): { success: boolean; data?: T }
 }
@@ -72,8 +82,9 @@ async function save(widget: CreateWidget) {
       })
     }
     emit('close')
-  } catch (e) {
-    error.value = e instanceof ApiRequestError ? e.message : 'Could not save the widget'
+  } catch (saveError) {
+    error.value =
+      saveError instanceof ApiRequestError ? saveError.message : 'Could not save the widget'
   }
 }
 </script>
@@ -95,7 +106,7 @@ async function save(widget: CreateWidget) {
         <ArrowLeft class="size-4" aria-hidden="true" />
       </button>
       <h2 class="flex-1 text-base font-medium">
-        {{ widget ? 'Widget settings' : type ? WIDGET_TYPE_INFO[type].label : 'Add widget' }}
+        {{ heading }}
       </h2>
       <button type="button" class="icon-btn" aria-label="Close panel" @click="emit('close')">
         <X class="size-4" aria-hidden="true" />
@@ -155,7 +166,7 @@ async function save(widget: CreateWidget) {
     <footer v-if="type" class="flex justify-end gap-2 border-t border-line px-6 py-4">
       <button type="button" class="btn btn-ghost" @click="emit('close')">Cancel</button>
       <button type="button" class="btn btn-primary" :disabled="saving" @click="form?.submit()">
-        {{ saving ? 'Saving…' : widget ? 'Save changes' : 'Add widget' }}
+        {{ saveLabel }}
       </button>
     </footer>
   </aside>

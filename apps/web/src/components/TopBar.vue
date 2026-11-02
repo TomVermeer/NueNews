@@ -33,6 +33,11 @@ const emit = defineEmits<{
 /** Which name form is open: a new dashboard's, the active dashboard's, or none. */
 const naming = ref<'create' | 'rename' | null>(null)
 
+const saveLabel = computed(() => {
+  if (props.saving) return 'Saving…'
+  return props.dirty ? 'Save layout' : 'Done'
+})
+
 const activeName = computed(() => props.dashboards.find((d) => d.id === props.activeId)?.name)
 
 function commitName(name: string) {
@@ -121,7 +126,7 @@ function confirmDelete() {
         </button>
         <button type="button" class="btn btn-ghost" @click="emit('cancel')">Cancel</button>
         <button type="button" class="btn btn-primary" :disabled="saving" @click="emit('save')">
-          {{ saving ? 'Saving…' : dirty ? 'Save layout' : 'Done' }}
+          {{ saveLabel }}
         </button>
       </template>
       <template v-else>
