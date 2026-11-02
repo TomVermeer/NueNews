@@ -119,7 +119,7 @@ defineExpose({ submit })
         <li v-for="place in results" :key="`${place.lat},${place.lon}`">
           <button
             type="button"
-            class="w-full px-3 py-2 text-left text-sm hover:bg-line"
+            class="min-h-12 w-full px-3 py-2 text-left text-sm hover:bg-line"
             @click="choose(place)"
           >
             {{ describe(place) }}

@@ -129,9 +129,9 @@ defineExpose({ submit })
       </button>
     </fieldset>
 
-    <details class="rounded-lg border border-line px-3 py-2">
-      <summary class="cursor-pointer text-sm text-ink-muted">Display options</summary>
-      <div class="mt-3 grid grid-cols-2 gap-3">
+    <details class="rounded-lg border border-line px-3">
+      <summary class="cursor-pointer py-3.5 text-sm text-ink-muted">Display options</summary>
+      <div class="grid grid-cols-2 gap-3 pb-3">
         <div>
           <label class="field-label" for="feed-limit">Items</label>
           <input
@@ -158,11 +158,11 @@ defineExpose({ submit })
             <option value="list">Plain list</option>
           </select>
         </div>
-        <div class="space-y-2 pt-6 text-sm">
-          <label class="flex items-center gap-2"
+        <div class="text-sm">
+          <label class="flex min-h-12 items-center gap-2"
             ><input v-model="form.showImages" type="checkbox" /> Show images</label
           >
-          <label class="flex items-center gap-2"
+          <label class="flex min-h-12 items-center gap-2"
             ><input v-model="form.unreadDots" type="checkbox" /> Unread dots</label
           >
         </div>

@@ -108,7 +108,7 @@ function confirmDelete() {
         <RouterLink
           v-else
           :to="{ name: 'dashboard', params: { id: dashboard.id } }"
-          class="rounded-lg px-3 py-1.5 text-sm transition-colors"
+          class="touch-target rounded-lg px-3 py-1.5 text-sm transition-colors"
           :class="
             dashboard.id === activeId
               ? 'bg-line text-ink'

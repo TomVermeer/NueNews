@@ -43,7 +43,7 @@ const weekday = (date: string) =>
         href="https://www.met.no/en"
         target="_blank"
         rel="noopener noreferrer"
-        class="hover:text-accent"
+        class="touch-target inline-block hover:text-accent"
         >{{ data.attribution }}</a
       >
     </p>
