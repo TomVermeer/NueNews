@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createTestApp } from './test/helpers'
+import { createTestApp, errorOf } from './test/helpers'
 
 let dist: string
 
@@ -65,9 +65,9 @@ describe('serving the web app', () => {
     expect(missing.headers.get('content-type')).toContain('json')
 
     const signedIn = await serving()
-    const unknown = await signedIn.call('GET', '/nope')
+    const unknown = await signedIn.send('GET', '/nope')
     expect(unknown.status).toBe(404)
-    expect(unknown.body.error.code).toBe('not_found')
+    expect((await errorOf(unknown)).error.code).toBe('not_found')
 
     const internal = await signedIn.app.request('/internal/nope')
     expect(internal.status).toBe(404)
@@ -85,9 +85,9 @@ describe('serving the web app', () => {
   })
 
   it('keeps the API working next to it', async () => {
-    const { call } = await serving()
-    expect((await call('GET', '/health')).body).toEqual({ status: 'ok' })
-    expect((await call('GET', '/dashboards')).status).toBe(200)
+    const { client } = await serving()
+    expect(await (await client.health.$get()).json()).toEqual({ status: 'ok' })
+    expect((await client.dashboards.$get()).status).toBe(200)
   })
 
   it('sends basic security headers', async () => {
