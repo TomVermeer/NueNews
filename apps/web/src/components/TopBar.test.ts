@@ -62,6 +62,68 @@ describe('TopBar tabs', () => {
     await wrapper.get('[aria-label="Cancel"]').trigger('click')
     expect(wrapper.find('input').exists()).toBe(false)
   })
+
+  it('focuses the name field, and Escape cancels', async () => {
+    const { wrapper } = await mountApp(TopBar, { props: base, attachTo: document.body })
+    await wrapper.get('[aria-label="New dashboard"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    const input = wrapper.get('input[aria-label="New dashboard name"]')
+    expect(document.activeElement).toBe(input.element)
+    expect(input.attributes('placeholder')).toBe('Dashboard name')
+
+    await input.trigger('keydown.esc')
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="New dashboard"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+})
+
+describe('TopBar renaming', () => {
+  it('focuses the name field and hides rename and delete while renaming', async () => {
+    const { wrapper } = await mountApp(TopBar, {
+      props: { ...base, editing: true },
+      attachTo: document.body,
+    })
+    await wrapper.get('[aria-label="Rename dashboard"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(document.activeElement).toBe(wrapper.get('input[aria-label="Dashboard name"]').element)
+    expect(wrapper.find('[aria-label="Rename dashboard"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Delete dashboard"]').exists()).toBe(false)
+    expect(wrapper.findAll('nav a').map((a) => a.text())).toEqual(['Reading'])
+    wrapper.unmount()
+  })
+
+  it('cancels on Escape or an empty name, without renaming', async () => {
+    const { wrapper } = await render({ editing: true })
+    await wrapper.get('[aria-label="Rename dashboard"]').trigger('click')
+    await wrapper.get('input[aria-label="Dashboard name"]').trigger('keydown.esc')
+    expect(wrapper.find('input').exists()).toBe(false)
+
+    await wrapper.get('[aria-label="Rename dashboard"]').trigger('click')
+    await wrapper.get('input[aria-label="Dashboard name"]').setValue('  ')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.emitted('rename-dashboard')).toBeUndefined()
+  })
+
+  it('switches to creating when the plus button is pressed while renaming', async () => {
+    const { wrapper } = await render({ editing: true })
+    await wrapper.get('[aria-label="Rename dashboard"]').trigger('click')
+    await wrapper.get('[aria-label="New dashboard"]').trigger('click')
+    expect(wrapper.find('input[aria-label="Dashboard name"]').exists()).toBe(false)
+    expect(wrapper.findAll('input')).toHaveLength(1)
+    expect(wrapper.find('input[aria-label="New dashboard name"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Rename dashboard"]').exists()).toBe(true)
+  })
+
+  it('switches to renaming when rename is pressed while creating', async () => {
+    const { wrapper } = await render({ editing: true })
+    await wrapper.get('[aria-label="New dashboard"]').trigger('click')
+    await wrapper.get('[aria-label="Rename dashboard"]').trigger('click')
+    expect(wrapper.findAll('input')).toHaveLength(1)
+    expect(inputOf(wrapper, 'input[aria-label="Dashboard name"]').value).toBe('Home')
+    expect(wrapper.find('[aria-label="New dashboard"]').exists()).toBe(true)
+  })
 })
 
 describe('TopBar in view mode', () => {

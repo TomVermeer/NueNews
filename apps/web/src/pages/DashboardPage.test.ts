@@ -143,6 +143,23 @@ describe('viewing a dashboard', () => {
     ).toEqual(['w1', 'w2'])
   })
 
+  it('disables refresh while widgets refresh, then shows the time of the refresh', async () => {
+    serve()
+    let finish: (value: { body: unknown }) => void = () => {}
+    fakeApi.on('POST widgets/:id/refresh', () => new Promise((resolve) => (finish = resolve)))
+    const { wrapper } = await open()
+    const refreshAll = () => wrapper.get('[aria-label="Refresh all widgets"]')
+    expect(wrapper.text()).toContain('Updated just now')
+
+    await wrapper.findAll('[aria-label="Refresh widget"]')[0]!.trigger('click')
+    expect(refreshAll().attributes('disabled')).toBeDefined()
+
+    finish({ body: { refreshed: 1, skipped: 0 } })
+    await flushPromises()
+    expect(refreshAll().attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).toContain('Updated just now')
+  })
+
   it('refreshes a single widget from its own button', async () => {
     serve()
     fakeApi.on('POST widgets/:id/refresh', { body: { refreshed: 1, skipped: 0 } })

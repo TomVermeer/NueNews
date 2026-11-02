@@ -15,6 +15,7 @@ import AddWidgetPanel from '../components/AddWidgetPanel.vue'
 import DashboardGrid from '../components/DashboardGrid.vue'
 import TopBar from '../components/TopBar.vue'
 import { useLayoutDraft } from '../composables/useLayoutDraft'
+import { useWidgetRefresh } from '../composables/useWidgetRefresh'
 import { useAuthStore } from '../stores/auth'
 import { useEditorStore } from '../stores/editor'
 
@@ -55,21 +56,11 @@ const editingWidget = computed(() => {
   return widgets.value.find((w) => w.id === current.widgetId)
 })
 
-const updatedAt = ref<Date | null>(null)
-watch(
-  () => dashboardQuery.dataUpdatedAt.value,
-  (time) => {
-    if (time && !updatedAt.value) updatedAt.value = new Date(time)
-  },
-)
-
-const refreshingIds = ref<string[]>([])
-async function refreshWidgets(list: WidgetDto[]) {
-  refreshingIds.value = [...refreshingIds.value, ...list.map((w) => w.id)]
-  await Promise.allSettled(list.map((w) => widgetMutations.refresh.mutateAsync(w.id)))
-  refreshingIds.value = refreshingIds.value.filter((id) => !list.some((w) => w.id === id))
-  updatedAt.value = new Date()
-}
+const {
+  refreshingIds,
+  updatedAt,
+  refresh: refreshWidgets,
+} = useWidgetRefresh(() => dashboardQuery.dataUpdatedAt.value)
 
 async function save() {
   if (!activeId.value) return
@@ -87,14 +78,9 @@ function cancel() {
   editor.stopEditing()
 }
 
-function renameWidget(widget: WidgetDto, title: string) {
+function updateWidget(widget: WidgetDto, patch: { title?: string; color?: WidgetColor | null }) {
   if (!activeId.value) return
-  widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, title })
-}
-
-function recolorWidget(widget: WidgetDto, color: WidgetColor | null) {
-  if (!activeId.value) return
-  widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, color })
+  widgetMutations.update.mutate({ dashboardId: activeId.value, id: widget.id, ...patch })
 }
 
 async function createDashboard(name: string) {
@@ -190,8 +176,8 @@ const firstName = ref('Home')
       @refresh="(widget) => refreshWidgets([widget])"
       @settings="(widget) => editor.openSettings(widget.id)"
       @remove="(widget) => draft.remove(widget.id)"
-      @rename="renameWidget"
-      @color="recolorWidget"
+      @rename="(widget, title) => updateWidget(widget, { title })"
+      @color="(widget, color) => updateWidget(widget, { color })"
     />
 
     <AddWidgetPanel
