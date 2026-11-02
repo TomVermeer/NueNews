@@ -56,11 +56,16 @@ export function sourceRefsFor(type: WidgetType, config: unknown): SourceRef[] {
 export function sourceLabels(type: WidgetType, config: unknown): Map<string, string | undefined> {
   if (type === 'feed') {
     const feed = feedConfigSchema.parse(config)
-    return new Map(feed.sources.map((s) => [checkUrl(s.url).href, s.label]))
+    return new Map(feed.sources.map((source) => [checkUrl(source.url).href, source.label]))
   }
   if (type === 'youtube') {
     const { channels } = youtubeConfigSchema.parse(config)
-    return new Map(channels.map((c) => [channelIdFromInput(c.input) ?? c.input, c.label]))
+    return new Map(
+      channels.map((channel) => [
+        channelIdFromInput(channel.input) ?? channel.input,
+        channel.label,
+      ]),
+    )
   }
   return new Map()
 }

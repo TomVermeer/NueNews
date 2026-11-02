@@ -19,14 +19,13 @@ export interface Scheduler {
 
 /** Groups sources by the site they hit, so one site is never fetched from in parallel. */
 function hostOf(source: SourceRow): string {
-  if (source.kind === 'rss') {
-    try {
-      return new URL(source.key).host
-    } catch {
-      // fall through to the kind
-    }
+  if (source.kind !== 'rss') return source.kind
+  try {
+    return new URL(source.key).host
+  } catch {
+    // Not a valid URL: group it with the other sources of its kind.
+    return source.kind
   }
-  return source.kind
 }
 
 export function groupByHost(list: SourceRow[]): SourceRow[][] {

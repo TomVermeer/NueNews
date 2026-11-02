@@ -90,6 +90,12 @@ function toItemDto(
   }
 }
 
+/** What went wrong on the last fetch, or null while the source is healthy. */
+function sourceError(source: SourceRow): string | null {
+  if (source.errorCount === 0) return null
+  return source.lastStatus ?? 'error'
+}
+
 function toSourceDto(source: SourceRow, labels: Labels) {
   return {
     id: source.id,
@@ -97,7 +103,7 @@ function toSourceDto(source: SourceRow, labels: Labels) {
     siteUrl: source.siteUrl,
     iconUrl: source.faviconUrl,
     lastFetchedAt: source.lastFetchedAt,
-    error: source.errorCount > 0 ? (source.lastStatus ?? 'error') : null,
+    error: sourceError(source),
   }
 }
 

@@ -52,14 +52,14 @@ function asNode(value: unknown): Node | undefined {
 }
 
 /** The text of a node that may be a plain string or an element with attributes. */
-function text(value: unknown): string | undefined {
+function textOf(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() || undefined
   if (typeof value === 'number') return String(value)
   const node = asNode(value)
-  return node ? text(node['#text']) : undefined
+  return node ? textOf(node['#text']) : undefined
 }
 
-function attr(node: unknown, name: string): string | undefined {
+function attribute(node: unknown, name: string): string | undefined {
   const value = asNode(node)?.[`@_${name}`]
   return typeof value === 'string' ? value : undefined
 }
@@ -78,9 +78,9 @@ function absoluteHttpUrl(value: string | undefined, base: string): string | unde
 function pickLink(links: unknown[], base: string): string | undefined {
   let fallback: string | undefined
   for (const link of links) {
-    const plain = text(link)
-    const href = attr(link, 'href')
-    const rel = attr(link, 'rel')
+    const plain = textOf(link)
+    const href = attribute(link, 'href')
+    const rel = attribute(link, 'rel')
     const candidate = absoluteHttpUrl(href ?? plain, base)
     if (!candidate) continue
     if (!rel || rel === 'alternate') return candidate
@@ -100,7 +100,7 @@ function pickImage(item: Node, html: string | undefined, base: string): string |
     ...toArray(asNode(item['media:group'])?.['media:thumbnail']),
   ]
   for (const thumb of media) {
-    const url = absoluteHttpUrl(attr(thumb, 'url'), base)
+    const url = absoluteHttpUrl(attribute(thumb, 'url'), base)
     if (url) return url
   }
 
@@ -110,10 +110,10 @@ function pickImage(item: Node, html: string | undefined, base: string): string |
     ...toArray(item.enclosure),
   ]
   for (const content of contents) {
-    const type = attr(content, 'type') ?? ''
-    const medium = attr(content, 'medium') ?? ''
+    const type = attribute(content, 'type') ?? ''
+    const medium = attribute(content, 'medium') ?? ''
     if (type.startsWith('image/') || medium === 'image') {
-      const url = absoluteHttpUrl(attr(content, 'url'), base)
+      const url = absoluteHttpUrl(attribute(content, 'url'), base)
       if (url) return url
     }
   }
@@ -121,10 +121,10 @@ function pickImage(item: Node, html: string | undefined, base: string): string |
 }
 
 function pickAuthor(item: Node): string | undefined {
-  const dc = text(item['dc:creator'])
-  if (dc) return dc
+  const creator = textOf(item['dc:creator'])
+  if (creator) return creator
   const author = item.author
-  const name = text(asNode(author)?.name) ?? text(author)
+  const name = textOf(asNode(author)?.name) ?? textOf(author)
   return name ? htmlToText(name) : undefined
 }
 
@@ -135,26 +135,26 @@ function parseDate(value: string | undefined, fallback: Date): Date {
 
 function normalizeItem(raw: Node, base: string, now: Date): NormalizedItem | undefined {
   const url =
-    pickLink(toArray(raw.link), base) ?? absoluteHttpUrl(text(raw.guid) ?? text(raw.id), base)
+    pickLink(toArray(raw.link), base) ?? absoluteHttpUrl(textOf(raw.guid) ?? textOf(raw.id), base)
   if (!url) return undefined
 
-  const summaryHtml = text(raw.description) ?? text(raw.summary)
-  const fullHtml = text(raw['content:encoded']) ?? text(raw.content)
-  const mediaDescription = text(asNode(raw['media:group'])?.['media:description'])
+  const summaryHtml = textOf(raw.description) ?? textOf(raw.summary)
+  const fullHtml = textOf(raw['content:encoded']) ?? textOf(raw.content)
+  const mediaDescription = textOf(asNode(raw['media:group'])?.['media:description'])
   const excerptSource = summaryHtml ?? fullHtml ?? mediaDescription
 
   const excerpt = makeExcerpt(excerptSource)
-  const title = htmlToText(text(raw.title) ?? '') || truncate(excerpt ?? '', 80) || url
+  const title = htmlToText(textOf(raw.title) ?? '') || truncate(excerpt ?? '', 80) || url
 
   const candidate = {
-    externalId: text(raw.guid) ?? text(raw.id) ?? url,
+    externalId: textOf(raw.guid) ?? textOf(raw.id) ?? url,
     title,
     url,
     excerpt,
     imageUrl: pickImage(raw, fullHtml ?? summaryHtml, base),
     author: pickAuthor(raw),
     publishedAt: parseDate(
-      text(raw.pubDate) ?? text(raw['dc:date']) ?? text(raw.published) ?? text(raw.updated),
+      textOf(raw.pubDate) ?? textOf(raw['dc:date']) ?? textOf(raw.published) ?? textOf(raw.updated),
       now,
     ),
   }
@@ -233,7 +233,7 @@ function normalizeItems(entries: unknown[], baseUrl: string, now: Date): Normali
 /** Parses an RSS 2.0, RSS 1.0 (RDF) or Atom document into normalized items. */
 export function parseFeed(xml: string, baseUrl: string, now: Date): ParsedFeed {
   const { meta, entries } = feedParts(parseXml(xml))
-  const title = text(meta?.title)
+  const title = textOf(meta?.title)
   return {
     title: title ? htmlToText(title) : undefined,
     siteUrl: pickLink(toArray(meta?.link), baseUrl),

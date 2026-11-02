@@ -27,15 +27,16 @@ export function createSupabaseAuthenticator(options: SupabaseAuthOptions): Authe
   const keys =
     options.keys ??
     createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`), { cooldownDuration: 30_000 })
-  const known = new Set<string>()
+  // Users already stored, so each one is inserted once per process rather than per request.
+  const storedUserIds = new Set<string>()
 
   async function ensureUser(id: string, email?: string) {
-    if (known.has(id)) return
+    if (storedUserIds.has(id)) return
     await options.db
       .insert(users)
       .values({ id, email: email ?? null, name: email ?? 'User' })
       .onConflictDoNothing()
-    known.add(id)
+    storedUserIds.add(id)
   }
 
   return async (headers) => {

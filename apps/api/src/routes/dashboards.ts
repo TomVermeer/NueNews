@@ -17,18 +17,19 @@ import { createWidget, saveLayout } from '../services/widgets'
 export function dashboardRoutes(deps: AppDeps) {
   const { db } = deps
 
-  const withWidgets = async (dashboard: typeof dashboards.$inferSelect) => ({
-    id: dashboard.id,
-    name: dashboard.name,
-    position: dashboard.position,
-    widgets: (
-      await db
-        .select()
-        .from(widgets)
-        .where(eq(widgets.dashboardId, dashboard.id))
-        .orderBy(widgets.y, widgets.x)
-    ).map(toWidgetDto),
-  })
+  const withWidgets = async (dashboard: typeof dashboards.$inferSelect) => {
+    const rows = await db
+      .select()
+      .from(widgets)
+      .where(eq(widgets.dashboardId, dashboard.id))
+      .orderBy(widgets.y, widgets.x)
+    return {
+      id: dashboard.id,
+      name: dashboard.name,
+      position: dashboard.position,
+      widgets: rows.map(toWidgetDto),
+    }
+  }
 
   const summary = (dashboard: typeof dashboards.$inferSelect) => ({
     id: dashboard.id,
