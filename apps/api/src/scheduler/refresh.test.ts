@@ -207,13 +207,15 @@ describe('selectDueSources', () => {
     )
     expect(yt.kind).toBe('youtube')
 
-    expect((await selectDueSources(db, registry, NOW, 10)).map((s) => s.id)).toEqual([due.id])
+    expect(
+      (await selectDueSources(db, { registry, now: NOW, limit: 10 })).map((s) => s.id),
+    ).toEqual([due.id])
   })
 
   it('respects the limit', async () => {
     const db = await freshDb()
     const registry = makeRegistry(fakeProvider().provider)
     await seedSourceWithWidget(db)
-    expect(await selectDueSources(db, registry, NOW, 0)).toEqual([])
+    expect(await selectDueSources(db, { registry, now: NOW, limit: 0 })).toEqual([])
   })
 })

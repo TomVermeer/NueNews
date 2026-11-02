@@ -19,6 +19,7 @@ describe('WidgetBody', () => {
     const { wrapper } = await mountApp(WidgetBody, { props: { widget: widget('w1') } })
 
     expect(wrapper.find('[aria-busy="true"]').exists()).toBe(true)
+    expect(wrapper.find('[role="status"][aria-busy="true"]').exists()).toBe(true)
     await flushPromises()
 
     expect(wrapper.find('[aria-busy="true"]').exists()).toBe(false)
@@ -74,6 +75,7 @@ describe('WidgetBody', () => {
     await flushPromises()
 
     expect(wrapper.get('[role="alert"]').text()).toContain('The weather service is down')
+    expect(wrapper.find('[role="alert"] svg[aria-hidden="true"]').exists()).toBe(true)
 
     healthy = true
     await wrapper.get('button').trigger('click')
@@ -102,6 +104,21 @@ describe('WidgetBody', () => {
     expect(fakeApi.callsTo('POST items/state')[0]!.args).toEqual({
       json: { ids: ['item-1'], action: 'read' },
     })
+  })
+
+  it('keeps an opened item marked read when the server call fails', async () => {
+    fakeApi.on('GET widgets/:id/data', { body: feedData([feedItem(1)]) })
+    fakeApi.on('POST items/state', { status: 500, body: { error: { code: 'x', message: 'x' } } })
+    const { wrapper } = await mountApp(WidgetBody, {
+      props: { widget: widget('w1', { config: { unreadDots: true } }) },
+    })
+    await flushPromises()
+    await wrapper
+      .findAll('a')
+      .find((a) => a.text() === 'Headline 1')!
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="unread-dot"]')).toHaveLength(0)
   })
 
   it('does not tell the server again about items that are already read', async () => {

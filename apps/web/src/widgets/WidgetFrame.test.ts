@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { Rss } from 'lucide-vue-next'
 import { describe, expect, it } from 'vitest'
 import WidgetFrame from './WidgetFrame.vue'
+import { inputIn } from '../test/dom'
 
 const render = (props: { editing: boolean; refreshing?: boolean }) =>
   mount(WidgetFrame, {
@@ -30,7 +31,7 @@ describe('WidgetFrame', () => {
     expect(wrapper.get('section').attributes('data-widget-color')).toBe('blue')
 
     await wrapper.get('[aria-label="Widget color"]').trigger('click')
-    ;(document.body.querySelector('input[aria-label="Pink"]') as HTMLInputElement).click()
+    inputIn(document.body, 'input[aria-label="Pink"]').click()
     expect(wrapper.emitted('color')).toEqual([['pink']])
     wrapper.unmount()
   })

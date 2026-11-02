@@ -114,6 +114,7 @@ describe('limits', () => {
     }
     await expect(client(fetchImpl).get('https://example.com/')).rejects.toMatchObject({
       code: 'network',
+      message: 'Network error: fetch failed',
     })
   })
 

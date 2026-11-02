@@ -9,7 +9,7 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
-import type { SourceKind, WidgetColor, WidgetType } from '@nuenews/shared'
+import type { SourceKind, WeatherSnapshot, WidgetColor, WidgetType } from '@nuenews/shared'
 
 // Ids are text, not uuid: a malformed id in a URL then simply finds nothing (404) instead of
 // failing in the database, and an auth provider's user ids fit as they are.
@@ -153,7 +153,8 @@ export const itemState = pgTable(
 export const weatherCache = pgTable('weather_cache', {
   /** Rounded "lat,lon,units". */
   key: text('key').primaryKey(),
-  payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  /** Only `getWeather` writes this, always with a parsed snapshot. */
+  payload: jsonb('payload').$type<WeatherSnapshot>().notNull(),
   fetchedAt: timestamptz('fetched_at').notNull(),
 })
 

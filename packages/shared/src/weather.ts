@@ -3,30 +3,30 @@ export type WeatherIcon =
 
 export interface WeatherDay {
   /** Local date, YYYY-MM-DD. */
-  date: string
-  min: number
-  max: number
-  label: string
-  icon: WeatherIcon
+  readonly date: string
+  readonly min: number
+  readonly max: number
+  readonly label: string
+  readonly icon: WeatherIcon
 }
 
 export interface WeatherSnapshot {
-  current: {
-    temperature: number
-    label: string
-    icon: WeatherIcon
-    isDay: boolean
+  readonly current: {
+    readonly temperature: number
+    readonly label: string
+    readonly icon: WeatherIcon
+    readonly isDay: boolean
   }
-  daily: WeatherDay[]
+  readonly daily: readonly WeatherDay[]
 }
 
 export interface GeocodeResult {
-  name: string
+  readonly name: string
   /** Province or state, when known. */
-  region?: string
-  country?: string
-  lat: number
-  lon: number
+  readonly region?: string
+  readonly country?: string
+  readonly lat: number
+  readonly lon: number
 }
 
 export const WEATHER_ATTRIBUTION = 'Data from MET Norway'

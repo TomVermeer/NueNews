@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { FeedParseError, parseFeed } from './parse'
+import { ProviderError } from '../errors'
+import { FeedParseError, parseFeed, readFeed, tryReadFeed } from './parse'
 
 const NOW = new Date('2026-02-01T00:00:00Z')
 
@@ -152,5 +153,33 @@ describe('invalid input', () => {
     ).join('')
     const xml = `<rss version="2.0"><channel><title>Big</title>${items}</channel></rss>`
     expect(parseFeed(xml, 'https://x.example/', NOW).items).toHaveLength(100)
+  })
+})
+
+describe('readFeed', () => {
+  const page = (body: string) => ({ body, url: 'https://news.example.com/feed.xml' })
+
+  it('parses a feed response', () => {
+    expect(readFeed(page(fixture('rss2.xml')), NOW).title).toBe('Example Tech & Science News')
+  })
+
+  it("reports a body that is not a feed as a ProviderError, with the parser's message", () => {
+    const run = () => readFeed(page('<html></html>'), NOW)
+    expect(run).toThrow(ProviderError)
+    expect(run).toThrow('This address does not contain an RSS or Atom feed')
+  })
+
+  it('uses the message it is given instead, when there is one', () => {
+    const run = () => readFeed(page('<html></html>'), NOW, 'No feed for this channel')
+    expect(run).toThrow(ProviderError)
+    expect(run).toThrow('No feed for this channel')
+  })
+})
+
+describe('tryReadFeed', () => {
+  it('returns the feed, or undefined when the body is not a feed', () => {
+    const url = 'https://news.example.com/feed.xml'
+    expect(tryReadFeed({ body: fixture('rss2.xml'), url }, NOW)?.items).toHaveLength(5)
+    expect(tryReadFeed({ body: '<html></html>', url }, NOW)).toBeUndefined()
   })
 })

@@ -25,7 +25,7 @@ defineEmits<{
 <template>
   <section
     class="flex size-full min-h-0 flex-col rounded-xl border bg-(--widget-bg)"
-    :class="editing ? 'border-dashed border-accent/50' : 'border-(--widget-line)'"
+    :class="editing ? 'border-dashed border-accent-muted' : 'border-(--widget-line)'"
     :data-widget-color="color ?? undefined"
     :aria-label="title"
   >

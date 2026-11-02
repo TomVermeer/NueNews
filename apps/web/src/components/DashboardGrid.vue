@@ -25,6 +25,14 @@ defineEmits<{
 }>()
 
 const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, widget])))
+
+/** Each layout item with its widget. Items whose widget is gone would render empty, so skip them. */
+const cells = computed(() =>
+  layout.value.flatMap((item) => {
+    const widget = byId.value.get(item.i)
+    return widget ? [{ item, widget }] : []
+  }),
+)
 </script>
 
 <template>
@@ -39,7 +47,7 @@ const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, wi
     use-css-transforms
   >
     <GridItem
-      v-for="item in layout"
+      v-for="{ item, widget } in cells"
       :key="item.i"
       :i="item.i"
       :x="item.x"
@@ -52,19 +60,18 @@ const byId = computed(() => new Map(props.widgets.map((widget) => [widget.id, wi
       drag-ignore-from="input, textarea, select"
     >
       <WidgetFrame
-        v-if="byId.get(item.i)"
-        :title="byId.get(item.i)!.title"
-        :icon="widgetIcon(byId.get(item.i)!.type)"
+        :title="widget.title"
+        :icon="widgetIcon(widget.type)"
         :editing="editing"
-        :color="byId.get(item.i)!.color"
+        :color="widget.color"
         :refreshing="refreshingIds?.includes(item.i)"
-        @refresh="$emit('refresh', byId.get(item.i)!)"
-        @settings="$emit('settings', byId.get(item.i)!)"
-        @remove="$emit('remove', byId.get(item.i)!)"
-        @rename="(title) => $emit('rename', byId.get(item.i)!, title)"
-        @color="(color) => $emit('color', byId.get(item.i)!, color)"
+        @refresh="$emit('refresh', widget)"
+        @settings="$emit('settings', widget)"
+        @remove="$emit('remove', widget)"
+        @rename="(title) => $emit('rename', widget, title)"
+        @color="(color) => $emit('color', widget, color)"
       >
-        <WidgetBody :widget="byId.get(item.i)!" />
+        <WidgetBody :widget="widget" />
       </WidgetFrame>
     </GridItem>
   </GridLayout>

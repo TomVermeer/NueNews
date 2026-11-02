@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { Plus, X } from 'lucide-vue-next'
-import { computed, reactive, ref, toRef } from 'vue'
+import { computed, reactive, toRef } from 'vue'
 import { feedConfigSchema, type FeedConfig } from '@nuenews/shared'
 import { useAutoTitle } from '../../composables/useAutoTitle'
+import { useFormSubmit } from '../../composables/useFormSubmit'
 import { suggestTitle } from '../../lib/titles'
-import ResolveInput from './ResolveInput.vue'
+import ResolveList from './ResolveList.vue'
+import TitleField from './TitleField.vue'
+import { labelOf, newSourceRow, resolvedRows, rowNames } from './sourceRows'
+import ErrorMessage from '../ErrorMessage.vue'
 
 const props = defineProps<{
   initial?: { title: string; config: Partial<FeedConfig> }
@@ -16,11 +19,9 @@ const defaults = feedConfigSchema.parse({ sources: [{ url: 'https://placeholder.
 
 const form = reactive({
   title: props.initial?.title ?? 'News',
-  sources: (props.initial?.config.sources ?? [{ url: '' }]).map((s) => ({
-    url: s.url,
-    label: s.label ?? '',
-    name: '',
-  })),
+  sources: (props.initial?.config.sources ?? [{ url: '' }]).map((source) =>
+    newSourceRow(source.url, source.label),
+  ),
   limit: props.initial?.config.limit ?? defaults.limit,
   excerpt: props.initial?.config.excerpt ?? defaults.excerpt,
   showImages: props.initial?.config.showImages ?? defaults.showImages,
@@ -30,14 +31,11 @@ const form = reactive({
 
 const autoTitle = useAutoTitle(
   toRef(form, 'title'),
-  computed(() =>
-    suggestTitle(form.sources.map((s) => s.label.trim() || s.name).filter((name) => name)),
-  ),
+  computed(() => suggestTitle(rowNames(form.sources))),
   { auto: !props.initial },
 )
 
-const attempted = ref(false)
-const resolvedSources = computed(() => form.sources.filter((s) => s.url))
+const resolvedSources = computed(() => resolvedRows(form.sources))
 const problem = computed(() => {
   if (!form.title.trim()) return 'Give the widget a title'
   if (resolvedSources.value.length === 0) return 'Add at least one feed and look it up'
@@ -47,85 +45,39 @@ const problem = computed(() => {
   return ''
 })
 
-function submit() {
-  attempted.value = true
-  if (problem.value) return
+const { shownProblem, submit } = useFormSubmit(problem, () =>
   emit('submit', {
     title: form.title.trim(),
     config: {
-      sources: resolvedSources.value.map((s) => ({
-        url: s.url,
-        ...(s.label.trim() ? { label: s.label.trim() } : {}),
-      })),
+      sources: resolvedSources.value.map((source) => ({ url: source.value, ...labelOf(source) })),
       limit: form.limit,
       excerpt: form.excerpt,
       showImages: form.showImages,
       unreadDots: form.unreadDots,
       variant: form.variant,
     },
-  })
-}
+  }),
+)
 
 defineExpose({ submit })
 </script>
 
 <template>
   <form class="space-y-4" @submit.prevent="submit">
-    <div>
-      <label class="field-label" for="feed-title">Title</label>
-      <input
-        id="feed-title"
-        v-model="form.title"
-        class="field"
-        maxlength="80"
-        @input="autoTitle.markEdited()"
-      />
-    </div>
+    <TitleField id="feed-title" v-model="form.title" @edit="autoTitle.markEdited()" />
 
-    <fieldset>
-      <legend class="field-label">Feeds</legend>
-      <ul class="space-y-3">
-        <li v-for="(source, index) in form.sources" :key="index" class="flex items-start gap-2">
-          <div class="min-w-0 flex-1 space-y-2">
-            <ResolveInput
-              v-model="source.url"
-              kind="rss"
-              :label="`Feed address ${index + 1}`"
-              placeholder="Website, feed address or r/subreddit page"
-              @resolved="(result) => (source.name = result.title ?? '')"
-            />
-            <input
-              v-if="source.url"
-              v-model="source.label"
-              class="field"
-              placeholder="Name (optional)"
-              :aria-label="`Name for feed ${index + 1}`"
-              maxlength="60"
-            />
-          </div>
-          <button
-            v-if="form.sources.length > 1"
-            type="button"
-            class="icon-btn mt-1"
-            :aria-label="`Remove feed ${index + 1}`"
-            @click="form.sources.splice(index, 1)"
-          >
-            <X class="size-4" aria-hidden="true" />
-          </button>
-        </li>
-      </ul>
-      <button
-        type="button"
-        class="btn btn-ghost mt-2 !px-0"
-        @click="form.sources.push({ url: '', label: '', name: '' })"
-      >
-        <Plus class="size-4" aria-hidden="true" /> Add another feed
-      </button>
-    </fieldset>
+    <ResolveList
+      v-model="form.sources"
+      kind="rss"
+      legend="Feeds"
+      noun="feed"
+      input-label="Feed address"
+      placeholder="Website, feed address or r/subreddit page"
+    />
 
-    <details class="rounded-lg border border-line px-3 py-2">
-      <summary class="cursor-pointer text-sm text-ink-muted">Display options</summary>
-      <div class="mt-3 grid grid-cols-2 gap-3">
+    <details class="rounded-lg border border-line px-3">
+      <summary class="cursor-pointer py-3.5 text-sm text-ink-muted">Display options</summary>
+      <div class="grid grid-cols-2 gap-3 pb-3">
         <div>
           <label class="field-label" for="feed-limit">Items</label>
           <input
@@ -152,18 +104,18 @@ defineExpose({ submit })
             <option value="list">Plain list</option>
           </select>
         </div>
-        <div class="space-y-2 pt-5 text-sm">
-          <label class="flex items-center gap-2"
+        <div class="text-sm">
+          <label class="flex min-h-12 items-center gap-2"
             ><input v-model="form.showImages" type="checkbox" /> Show images</label
           >
-          <label class="flex items-center gap-2"
+          <label class="flex min-h-12 items-center gap-2"
             ><input v-model="form.unreadDots" type="checkbox" /> Unread dots</label
           >
         </div>
       </div>
     </details>
 
-    <p v-if="attempted && problem" class="text-xs text-amber-400" role="alert">{{ problem }}</p>
+    <ErrorMessage v-if="shownProblem" class="text-xs">{{ shownProblem }}</ErrorMessage>
     <button type="submit" class="sr-only">Save</button>
   </form>
 </template>

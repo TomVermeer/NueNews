@@ -3,6 +3,7 @@ import { LayoutDashboard } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import ErrorMessage from '../components/ErrorMessage.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -71,7 +72,7 @@ async function submit() {
           />
         </div>
 
-        <p v-if="error" class="text-sm text-amber-400" role="alert">{{ error }}</p>
+        <ErrorMessage v-if="error" class="text-sm">{{ error }}</ErrorMessage>
 
         <button type="submit" class="btn btn-primary w-full justify-center" :disabled="signingIn">
           {{ signingIn ? 'Signing in…' : 'Sign in' }}

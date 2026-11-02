@@ -1,6 +1,6 @@
 export interface AuthenticatedUser {
-  id: string
-  email?: string
+  readonly id: string
+  readonly email?: string
 }
 
 /** Works out who is calling from the request headers. Resolves with nothing when nobody is signed in. */

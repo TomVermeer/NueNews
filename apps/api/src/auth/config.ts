@@ -1,13 +1,8 @@
 import type { Db } from '../db/client'
 import { ensureLocalUser } from '../db/seed'
+import type { AuthEnv } from '../env'
 import { createSupabaseAuthenticator } from './supabase'
 import type { Authenticator } from './types'
-
-export interface AuthEnv {
-  NODE_ENV?: string
-  SUPABASE_URL?: string
-  SUPABASE_JWT_SECRET?: string
-}
 
 /**
  * Picks how requests are authenticated from the environment.

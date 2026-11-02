@@ -41,68 +41,91 @@ function solarTime(entry: Entry, lon: number): Date {
   return new Date(Date.parse(entry.time) + (lon / 15) * MS_PER_HOUR)
 }
 
-function symbolOf(entry: Entry): string | undefined {
-  const { next_1_hours, next_6_hours, next_12_hours } = entry.data
-  return (next_1_hours ?? next_6_hours ?? next_12_hours)?.summary.symbol_code
-}
+type Window = 'next_1_hours' | 'next_6_hours' | 'next_12_hours'
 
-/** The longest forecast window that starts at this entry, which describes the stretch best. */
-function daySymbolOf(entry: Entry): string | undefined {
-  const { next_6_hours, next_12_hours, next_1_hours } = entry.data
-  return (next_6_hours ?? next_12_hours ?? next_1_hours)?.summary.symbol_code
+/** The current weather is best told by the shortest forecast window. */
+const NOW_WINDOWS: readonly Window[] = ['next_1_hours', 'next_6_hours', 'next_12_hours']
+/** A day is best told by the longest window that starts at an entry. */
+const DAY_WINDOWS: readonly Window[] = ['next_6_hours', 'next_12_hours', 'next_1_hours']
+
+/** The symbol of the first of `windows` this entry has. */
+function symbolOf(entry: Entry, windows: readonly Window[]): string | undefined {
+  for (const window of windows) {
+    const summary = entry.data[window]
+    if (summary) return summary.summary.symbol_code
+  }
+  return undefined
 }
 
 function toUnits(celsius: number, units: Units): number {
   return Math.round(units === 'imperial' ? (celsius * 9) / 5 + 32 : celsius)
 }
 
+/** Day or night: the symbol says so when it can, otherwise 07:00 to 19:00 local time is day. */
+function isDaytime(symbol: string | undefined, localHour: number): boolean {
+  if (symbol?.endsWith('_night')) return false
+  if (symbol?.endsWith('_day')) return true
+  return localHour >= 7 && localHour < 19
+}
+
+function currentWeather(first: Entry, lon: number, units: Units): WeatherSnapshot['current'] {
+  const symbol = symbolOf(first, NOW_WINDOWS)
+  const { label, icon } = describeSymbol(symbol ?? '')
+  return {
+    temperature: toUnits(first.data.instant.details.air_temperature, units),
+    label,
+    icon,
+    isDay: isDaytime(symbol, solarTime(first, lon).getUTCHours()),
+  }
+}
+
+interface TimedEntry {
+  readonly entry: Entry
+  /** The local hour of the entry. */
+  readonly hour: number
+}
+
+/** The entries per local date, in the order they come. */
+function groupByDate(series: readonly Entry[], lon: number): Map<string, TimedEntry[]> {
+  const byDate = new Map<string, TimedEntry[]>()
+  for (const entry of series) {
+    const local = solarTime(entry, lon)
+    const date = local.toISOString().slice(0, 10)
+    byDate.set(date, [...(byDate.get(date) ?? []), { entry, hour: local.getUTCHours() }])
+  }
+  return byDate
+}
+
+/** Describes the day by the entry closest to midday that has a symbol. */
+function middaySymbol(entries: readonly TimedEntry[]): string | undefined {
+  const midday = entries
+    .filter(({ entry }) => symbolOf(entry, DAY_WINDOWS))
+    .sort((a, b) => Math.abs(a.hour - 12) - Math.abs(b.hour - 12))[0]
+  return midday && symbolOf(midday.entry, DAY_WINDOWS)
+}
+
+function dayForecast(date: string, entries: readonly TimedEntry[], units: Units): WeatherDay {
+  const temperatures = entries.map(({ entry }) => entry.data.instant.details.air_temperature)
+  const { label, icon } = describeSymbol(middaySymbol(entries) ?? '')
+  return {
+    date,
+    min: toUnits(Math.min(...temperatures), units),
+    max: toUnits(Math.max(...temperatures), units),
+    label,
+    icon,
+  }
+}
+
 export function parseForecast(json: unknown, lon: number, units: Units): WeatherSnapshot {
   const parsed = forecastSchema.safeParse(json)
   if (!parsed.success) throw new ProviderError('The weather service returned an unexpected answer')
   const series = parsed.data.properties.timeseries
+  // The schema requires at least one entry.
   const first = series[0]!
 
-  const symbol = symbolOf(first)
-  const now = describeSymbol(symbol ?? '')
-  const hour = solarTime(first, lon).getUTCHours()
-  const isDay = symbol?.endsWith('_night')
-    ? false
-    : symbol?.endsWith('_day')
-      ? true
-      : hour >= 7 && hour < 19
-
-  const byDate = new Map<string, { entry: Entry; hour: number }[]>()
-  for (const entry of series) {
-    const local = solarTime(entry, lon)
-    const date = local.toISOString().slice(0, 10)
-    const list = byDate.get(date) ?? []
-    list.push({ entry, hour: local.getUTCHours() })
-    byDate.set(date, list)
-  }
-
-  const daily: WeatherDay[] = [...byDate].slice(0, DAYS).map(([date, list]) => {
-    const temperatures = list.map(({ entry }) => entry.data.instant.details.air_temperature)
-    // Describe the day by the entry closest to midday that has a longer outlook.
-    const midday = list
-      .filter(({ entry }) => daySymbolOf(entry))
-      .sort((a, b) => Math.abs(a.hour - 12) - Math.abs(b.hour - 12))[0]
-    const described = describeSymbol((midday && daySymbolOf(midday.entry)) ?? '')
-    return {
-      date,
-      min: toUnits(Math.min(...temperatures), units),
-      max: toUnits(Math.max(...temperatures), units),
-      label: described.label,
-      icon: described.icon,
-    }
-  })
-
+  const days = [...groupByDate(series, lon)].slice(0, DAYS)
   return {
-    current: {
-      temperature: toUnits(first.data.instant.details.air_temperature, units),
-      label: now.label,
-      icon: now.icon,
-      isDay,
-    },
-    daily,
+    current: currentWeather(first, lon, units),
+    daily: days.map(([date, entries]) => dayForecast(date, entries, units)),
   }
 }

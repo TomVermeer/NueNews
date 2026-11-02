@@ -34,6 +34,10 @@ export const WIDGET_TYPE_INFO: Record<AddableWidgetType, WidgetTypeInfo> = {
   },
 }
 
+export function isAddableWidgetType(type: WidgetType): type is AddableWidgetType {
+  return ADDABLE_WIDGET_TYPES.some((addable) => addable === type)
+}
+
 export function widgetIcon(type: WidgetType): Component {
-  return WIDGET_TYPE_INFO[type as AddableWidgetType]?.icon ?? Rss
+  return isAddableWidgetType(type) ? WIDGET_TYPE_INFO[type].icon : Rss
 }
