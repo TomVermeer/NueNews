@@ -3,9 +3,10 @@ import { defineComponent } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi } from '../test/fakeApi'
 import { feedData, feedItem, weatherData, widget } from '../test/factories'
+import { stubViewport } from '../test/fakeViewport'
 import { mountApp } from '../test/mount'
 import DashboardPage from './DashboardPage.vue'
-import { getButton, inputIn, inputOf } from '../test/dom'
+import { findButton, getButton, inputIn, inputOf } from '../test/dom'
 
 vi.mock('../api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/client')>()
@@ -168,6 +169,65 @@ describe('viewing a dashboard', () => {
     await wrapper.findAll('[aria-label="Refresh widget"]')[0]!.trigger('click')
     await flushPromises()
     expect(fakeApi.callsTo('POST widgets/:id/refresh').map((c) => c.args.param?.id)).toEqual(['w1'])
+  })
+})
+
+describe('on a compact screen', () => {
+  const upper = widget('w1', { title: 'Upper', layout: { x: 0, y: 0, w: 4, h: 6 } })
+  const lower = widget('w3', { title: 'Lower', layout: { x: 0, y: 6, w: 4, h: 6 } })
+
+  it('stacks the widgets in reading order without the grid', async () => {
+    serve({ widgets: [lower, upper] })
+    stubViewport(true)
+    const { wrapper } = await open()
+
+    expect(wrapper.find('[data-testid="grid"]').exists()).toBe(false)
+    expect(wrapper.findAll('section h2').map((heading) => heading.text())).toEqual([
+      'Upper',
+      'Lower',
+    ])
+  })
+
+  it('hides layout editing and lets you add a widget without entering edit mode', async () => {
+    serve({ widgets: [upper, lower] })
+    stubViewport(true)
+    const { wrapper } = await open()
+    expect(findButton(wrapper, 'Edit layout')).toBeUndefined()
+
+    await getButton(wrapper, 'Add widget').trigger('click')
+
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Add widget')
+    expect(wrapper.find('.drag-handle').exists()).toBe(false)
+    expect(findButton(wrapper, 'Save layout')).toBeUndefined()
+    expect(findButton(wrapper, 'Done')).toBeUndefined()
+  })
+
+  it('leaves edit mode when a wide screen becomes compact', async () => {
+    serve({ widgets: [upper, lower] })
+    const viewport = stubViewport(false)
+    const { wrapper } = await open()
+    await getButton(wrapper, 'Edit layout').trigger('click')
+    expect(wrapper.find('.drag-handle').exists()).toBe(true)
+
+    viewport.setCompact(true)
+    await flushPromises()
+
+    expect(wrapper.find('.drag-handle').exists()).toBe(false)
+    expect(findButton(wrapper, 'Done')).toBeUndefined()
+    expect(findButton(wrapper, 'Edit layout')).toBeUndefined()
+    expect(fakeApi.callsTo('PUT dashboards/:id/layout')).toHaveLength(0)
+  })
+
+  it('goes back to the grid on a wide screen', async () => {
+    serve({ widgets: [upper, lower] })
+    const viewport = stubViewport(true)
+    const { wrapper } = await open()
+
+    viewport.setCompact(false)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="grid"]').exists()).toBe(true)
+    expect(findButton(wrapper, 'Edit layout')).toBeDefined()
   })
 })
 

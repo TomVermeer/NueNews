@@ -67,8 +67,8 @@ defineExpose({ submit })
       placeholder="@handle, channel address or channel ID"
     />
 
-    <div class="w-32">
-      <label class="field-label" for="yt-limit">Videos</label>
+    <div class="w-44">
+      <label class="field-label" for="yt-limit">Videos per channel</label>
       <input
         id="yt-limit"
         v-model.number="form.limit"

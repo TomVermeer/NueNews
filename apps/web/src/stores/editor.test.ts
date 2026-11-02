@@ -19,6 +19,13 @@ describe('editor store', () => {
     expect(editor.panelOpen).toBe(true)
   })
 
+  it('can open the add panel without switching edit mode on', () => {
+    const editor = useEditorStore()
+    editor.openAddPanel({ keepViewMode: true })
+    expect(editor.editing).toBe(false)
+    expect(editor.panel).toEqual({ mode: 'add' })
+  })
+
   it('opens the settings of one widget', () => {
     const editor = useEditorStore()
     editor.startEditing()

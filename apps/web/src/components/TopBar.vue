@@ -14,6 +14,8 @@ const props = defineProps<{
   saving: boolean
   refreshing: boolean
   updatedAt: Date | null
+  /** A narrow screen: no layout editing, but widgets can still be added. */
+  compact?: boolean
   /** Show the sign out button (only when the app has a login). */
   canSignOut?: boolean
 }>()
@@ -55,13 +57,17 @@ function confirmDelete() {
 </script>
 
 <template>
-  <header class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+  <!-- On a narrow screen the tabs drop to their own row below the brand and the actions. -->
+  <header class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 medium:mb-6">
     <span class="flex items-center gap-2 text-base/6 font-medium">
       <LayoutDashboard class="size-5 text-accent" aria-hidden="true" />
       NueNews
     </span>
 
-    <nav class="flex flex-wrap items-center gap-1" aria-label="Dashboards">
+    <nav
+      class="order-last -my-2 flex w-full flex-nowrap items-center gap-1 overflow-x-auto py-2 [scrollbar-width:none] *:shrink-0 expanded:order-none expanded:my-0 expanded:w-auto expanded:flex-wrap expanded:overflow-visible expanded:py-0"
+      aria-label="Dashboards"
+    >
       <template v-for="dashboard in dashboards" :key="dashboard.id">
         <DashboardNameForm
           v-if="naming === 'rename' && dashboard.id === activeId"
@@ -74,7 +80,7 @@ function confirmDelete() {
         <RouterLink
           v-else
           :to="{ name: 'dashboard', params: { id: dashboard.id } }"
-          class="touch-target rounded-lg px-3 py-1.5 text-sm transition-colors"
+          class="touch-target shrink-0 rounded-lg px-3 py-1.5 text-sm whitespace-nowrap transition-colors"
           :class="
             dashboard.id === activeId
               ? 'bg-line text-ink'
@@ -142,7 +148,16 @@ function confirmDelete() {
         >
           <RefreshCw class="size-4" :class="{ 'animate-spin': refreshing }" aria-hidden="true" />
         </button>
-        <button type="button" class="btn" :disabled="!activeId" @click="emit('edit')">
+        <button
+          v-if="compact"
+          type="button"
+          class="btn"
+          :disabled="!activeId"
+          @click="emit('add-widget')"
+        >
+          <Plus class="size-4" aria-hidden="true" /> Add widget
+        </button>
+        <button v-else type="button" class="btn" :disabled="!activeId" @click="emit('edit')">
           <Pencil class="size-4" aria-hidden="true" /> Edit layout
         </button>
         <button

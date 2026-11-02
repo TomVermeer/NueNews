@@ -75,6 +75,17 @@ async function newestItems(db: Db, userId: string, sourceIds: string[], limit: n
 
 type ItemRow = Awaited<ReturnType<typeof newestItems>>[number]
 
+/** The newest `limit` items of every source, merged newest first. */
+async function newestItemsPerSource(
+  db: Db,
+  userId: string,
+  sourceIds: string[],
+  limit: number,
+): Promise<ItemRow[]> {
+  const perSource = await Promise.all(sourceIds.map((id) => newestItems(db, userId, [id], limit)))
+  return perSource.flat().sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+}
+
 function toItemDto(
   { seenAt, readAt, ...item }: ItemRow,
   source: SourceRow | undefined,
@@ -124,7 +135,12 @@ async function feedData(deps: AppDeps, userId: string, widget: WidgetRow) {
     .from(sources)
     .where(inArray(sources.id, await sourceIdsOf(db, widget.id)))
   const sourceById = new Map(sourceRows.map((row) => [row.id, row]))
-  const itemRows = await newestItems(db, userId, [...sourceById.keys()], config.limit)
+  // A feed shares its limit across all its sources; a YouTube widget applies it per channel.
+  const sourceIds = [...sourceById.keys()]
+  const itemRows =
+    widget.type === 'youtube'
+      ? await newestItemsPerSource(db, userId, sourceIds, config.limit)
+      : await newestItems(db, userId, sourceIds, config.limit)
 
   return {
     widget: widgetSummary(widget),

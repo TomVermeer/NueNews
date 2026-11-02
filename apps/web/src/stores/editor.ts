@@ -19,9 +19,9 @@ export const useEditorStore = defineStore('editor', () => {
     panel.value = { mode: 'closed' }
   }
 
-  /** Adding widgets needs edit mode, so this switches it on. */
-  function openAddPanel() {
-    editing.value = true
+  /** Adding widgets switches edit mode on, unless the screen cannot edit the layout. */
+  function openAddPanel({ keepViewMode = false } = {}) {
+    if (!keepViewMode) editing.value = true
     panel.value = { mode: 'add' }
   }
 

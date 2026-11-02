@@ -91,7 +91,7 @@ async function save(widget: CreateWidget) {
 
 <template>
   <aside
-    class="fixed inset-y-0 right-0 z-30 flex w-full max-w-md flex-col border-l border-line bg-card shadow-2xl"
+    class="fixed top-0 right-0 z-30 flex h-dvh w-full flex-col border-l border-line bg-card shadow-2xl medium:max-w-md"
     role="dialog"
     aria-label="Widget panel"
   >

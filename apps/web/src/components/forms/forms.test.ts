@@ -149,6 +149,10 @@ describe('YouTubeForm', () => {
     expect(wrapper.get('[role="alert"]').text()).toContain('Add at least one channel')
   })
 
+  it('asks for the number of videos per channel', () => {
+    expect(mount(YouTubeForm).get('label[for="yt-limit"]').text()).toBe('Videos per channel')
+  })
+
   it('submits channel IDs, names and the video limit', async () => {
     fakeApi.on('POST sources/resolve', {
       body: { kind: 'youtube', key: 'UCsBjURrPoezykLs9EqgamOA', title: 'Fireship' },
