@@ -43,7 +43,13 @@ function markRead(item: FeedItem) {
 </script>
 
 <template>
-  <div v-if="query.isPending.value" class="space-y-3" aria-busy="true" aria-label="Loading">
+  <div
+    v-if="query.isPending.value"
+    class="space-y-3"
+    role="status"
+    aria-busy="true"
+    aria-label="Loading"
+  >
     <div v-for="n in 3" :key="n" class="flex gap-3">
       <div class="size-12 animate-pulse rounded-lg bg-line" />
       <div class="flex-1 space-y-2 pt-1">

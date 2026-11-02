@@ -30,6 +30,16 @@ describe('WidgetColorButton', () => {
     expect(wrapper.get('button').attributes('aria-expanded')).toBe('true')
   })
 
+  it('moves focus to the selected color when it opens', async () => {
+    const wrapper = render('teal')
+    await wrapper.get('button').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(document.activeElement).toBe(
+      inputIn(document.body, '[role="dialog"] input[aria-label="Teal"]'),
+    )
+  })
+
   it('reports the chosen color and closes', async () => {
     const wrapper = render()
     await wrapper.get('button').trigger('click')

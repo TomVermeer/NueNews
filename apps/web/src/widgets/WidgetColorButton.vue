@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Palette } from 'lucide-vue-next'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { WidgetColor } from '@nuenews/shared'
 import ColorPicker from '../components/ColorPicker.vue'
 
@@ -33,6 +33,15 @@ function toggle() {
     position.value = { top: rect.bottom + 8, right: window.innerWidth - rect.right }
   }
   open.value = true
+  void focusSelected()
+}
+
+/** Keyboard users land on the current color, so arrow keys move from there. */
+async function focusSelected() {
+  await nextTick()
+  const radios = panel.value?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ?? []
+  const selected = Array.from(radios).find((radio) => radio.checked) ?? radios[0]
+  selected?.focus()
 }
 
 function close() {

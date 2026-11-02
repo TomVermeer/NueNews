@@ -19,6 +19,7 @@ describe('WidgetBody', () => {
     const { wrapper } = await mountApp(WidgetBody, { props: { widget: widget('w1') } })
 
     expect(wrapper.find('[aria-busy="true"]').exists()).toBe(true)
+    expect(wrapper.find('[role="status"][aria-busy="true"]').exists()).toBe(true)
     await flushPromises()
 
     expect(wrapper.find('[aria-busy="true"]').exists()).toBe(false)

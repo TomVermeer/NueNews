@@ -156,13 +156,7 @@ function confirmDelete() {
           <Plus class="size-4" aria-hidden="true" /> Add widget
         </button>
         <button type="button" class="btn btn-ghost" @click="emit('cancel')">Cancel</button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="saving"
-          :aria-label="dirty ? 'Save layout' : 'Done'"
-          @click="emit('save')"
-        >
+        <button type="button" class="btn btn-primary" :disabled="saving" @click="emit('save')">
           {{ saving ? 'Saving…' : dirty ? 'Save layout' : 'Done' }}
         </button>
       </template>

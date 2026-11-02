@@ -115,6 +115,8 @@ describe('TopBar in edit mode', () => {
     const { wrapper } = await render({ editing: true, dirty: true, saving: true })
     const save = getButton(wrapper, 'Saving…')
     expect(save.attributes('disabled')).toBeDefined()
+    // The accessible name follows the visible text, so screen readers hear "Saving…" too.
+    expect(save.attributes('aria-label')).toBeUndefined()
   })
 
   it('renames the active dashboard', async () => {
