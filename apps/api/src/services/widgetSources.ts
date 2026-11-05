@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Layout, SourceKind, WidgetType } from '@nuenews/shared'
 import { feedConfigSchema, youtubeConfigSchema } from '@nuenews/shared'
+import type { AppDeps } from '../context'
 import type { Db } from '../db/client'
 import { firstRow, onlyRow } from '../db/query'
 import { dashboards, sources, widgetSources, widgets } from '../db/schema'
@@ -8,14 +9,29 @@ import { ApiError, notFound } from '../http'
 import { checkUrl } from '../lib/ssrf'
 import { channelIdFromInput } from '../providers/youtube'
 
-/** Widget types that can be created today. The rest exist in the schema but have no provider yet. */
-export const AVAILABLE_WIDGET_TYPES: readonly WidgetType[] = ['feed', 'youtube', 'weather']
+/**
+ * Widget types that can be created today. RoyalRoad exists in the schema but has no provider yet,
+ * and the route widget needs the server's Google Maps key.
+ */
+export function availableWidgetTypes(deps: Pick<AppDeps, 'googleMapsEmbedKey'>): WidgetType[] {
+  const types: WidgetType[] = ['feed', 'youtube', 'weather']
+  return deps.googleMapsEmbedKey ? [...types, 'route'] : types
+}
+
+export function unavailableWidgetError(type: WidgetType): ApiError {
+  const reason =
+    type === 'route'
+      ? 'needs a Google Maps key, which this server does not have'
+      : 'is not available yet'
+  return new ApiError(422, 'widget_type_unavailable', `The "${type}" widget ${reason}`)
+}
 
 export const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
   feed: { w: 4, h: 6 },
   royalroad: { w: 4, h: 5 },
   youtube: { w: 6, h: 5 },
   weather: { w: 4, h: 4 },
+  route: { w: 6, h: 5 },
 }
 
 export interface SourceRef {

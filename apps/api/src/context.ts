@@ -14,6 +14,8 @@ export interface AppDeps {
   readonly minRefreshIntervalSec: number
   /** Where the built web app is. When set (and built), the API serves it too. */
   readonly webRoot?: string
+  /** Lets the browser show Google Maps routes. Without it the route widget is unavailable. */
+  readonly googleMapsEmbedKey?: string
   /** Turns on POST /internal/tick for an outside cron. Without it the endpoint does not exist. */
   readonly cron?: { secret: string; tick: () => Promise<number> }
 }

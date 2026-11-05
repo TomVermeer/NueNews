@@ -15,7 +15,8 @@ import { createScheduler } from './scheduler/scheduler'
 const envFile = new URL('../../../.env', import.meta.url)
 if (existsSync(envFile)) process.loadEnvFile(envFile)
 
-const { port, databaseLocation, userAgent, production, cronSecret, auth } = readEnv(process.env)
+const { port, databaseLocation, userAgent, production, cronSecret, googleMapsEmbedKey, auth } =
+  readEnv(process.env)
 
 const { db, close: closeDb } = await createDb(databaseLocation)
 const authenticate = await createAuthenticator(auth, db)
@@ -38,6 +39,7 @@ const app = createApp({
   now: () => new Date(),
   authenticate,
   minRefreshIntervalSec: 60,
+  googleMapsEmbedKey,
   // In production the API serves the built web app too, so one service hosts everything.
   webRoot: production ? fileURLToPath(new URL('../../web/dist', import.meta.url)) : undefined,
   cron: cronSecret ? { secret: cronSecret, tick: () => scheduler.tick() } : undefined,

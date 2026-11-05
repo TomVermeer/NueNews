@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi } from '../../test/fakeApi'
 import FeedForm from './FeedForm.vue'
+import RouteForm from './RouteForm.vue'
 import WeatherForm from './WeatherForm.vue'
 import YouTubeForm from './YouTubeForm.vue'
 import { getButton, inputOf } from '../../test/dom'
@@ -388,5 +389,140 @@ describe('WeatherForm', () => {
     })
     expect(wrapper.text()).toContain('Delft')
     expect(inputOf(wrapper, 'input[value="imperial"]').checked).toBe(true)
+  })
+})
+
+describe('RouteForm', () => {
+  async function fillIn(wrapper: ReturnType<typeof mount>, origin: string, destination: string) {
+    await wrapper.get('#route-origin').setValue(origin)
+    await wrapper.get('#route-destination').setValue(destination)
+  }
+
+  const existing = {
+    title: 'Commute',
+    config: {
+      origin: 'Home',
+      destination: 'Work',
+      mode: 'transit',
+      reversed: true,
+      autoSwapAt: '13:30',
+    },
+  } as const
+
+  it('asks for a starting point and a destination, and shows why', async () => {
+    const wrapper = mount(RouteForm)
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Enter a starting point')
+
+    await wrapper.get('#route-origin').setValue('Home')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Enter a destination')
+  })
+
+  it('submits trimmed addresses, driving, not reversed and without an automatic swap', async () => {
+    const wrapper = mount(RouteForm)
+    await fillIn(wrapper, '  Home ', ' Work  ')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')![0]).toEqual([
+      {
+        title: 'Home → Work',
+        config: { origin: 'Home', destination: 'Work', mode: 'driving', reversed: false },
+      },
+    ])
+  })
+
+  it.each(['bicycling', 'walking', 'transit'])('submits the %s mode', async (mode) => {
+    const wrapper = mount(RouteForm)
+    await fillIn(wrapper, 'Home', 'Work')
+    await wrapper.get(`input[value="${mode}"]`).setValue(true)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')![0]![0]).toMatchObject({ config: { mode } })
+  })
+
+  it('names all four modes in plain words', () => {
+    const wrapper = mount(RouteForm)
+    const labels = wrapper.findAll('fieldset label').map((label) => label.text())
+    expect(labels).toEqual(['Drive', 'Cycle', 'Walk', 'Public transport'])
+  })
+
+  it('keeps the title short when the addresses are long', async () => {
+    const wrapper = mount(RouteForm)
+    await fillIn(wrapper, 'A'.repeat(100), 'B'.repeat(100))
+    expect(inputOf(wrapper, '#route-title').value.length).toBeLessThanOrEqual(80)
+  })
+
+  it('keeps a title you typed when you fill in the addresses', async () => {
+    const wrapper = mount(RouteForm)
+    await wrapper.get('#route-title').setValue('Commute')
+    await fillIn(wrapper, 'Home', 'Work')
+    expect(inputOf(wrapper, '#route-title').value).toBe('Commute')
+  })
+
+  it('swaps automatically only when asked to, from noon by default', async () => {
+    const wrapper = mount(RouteForm)
+    expect(wrapper.find('#route-swap-time').exists()).toBe(false)
+
+    await wrapper.get('#route-auto-swap').setValue(true)
+    expect(inputOf(wrapper, '#route-swap-time').value).toBe('12:00')
+
+    await fillIn(wrapper, 'Home', 'Work')
+    await wrapper.get('#route-swap-time').setValue('17:30')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('submit')![0]![0]).toMatchObject({ config: { autoSwapAt: '17:30' } })
+  })
+
+  it('leaves the swap time out again when the automatic swap is switched off', async () => {
+    const wrapper = mount(RouteForm, { props: { initial: existing } })
+    await wrapper.get('#route-auto-swap').setValue(false)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')![0]![0]).not.toHaveProperty('config.autoSwapAt')
+  })
+
+  it('requires a time for the automatic swap', async () => {
+    const wrapper = mount(RouteForm)
+    await fillIn(wrapper, 'Home', 'Work')
+    await wrapper.get('#route-auto-swap').setValue(true)
+    await wrapper.get('#route-swap-time').setValue('')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Choose the time of the swap')
+  })
+
+  it('prefills from an existing widget and keeps its direction', async () => {
+    const wrapper = mount(RouteForm, { props: { initial: existing } })
+    expect(inputOf(wrapper, '#route-origin').value).toBe('Home')
+    expect(inputOf(wrapper, '#route-destination').value).toBe('Work')
+    expect(inputOf(wrapper, 'input[value="transit"]').checked).toBe(true)
+    expect(inputOf(wrapper, '#route-auto-swap').checked).toBe(true)
+    expect(inputOf(wrapper, '#route-swap-time').value).toBe('13:30')
+
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('submit')![0]).toEqual([
+      {
+        title: 'Commute',
+        config: { ...existing.config },
+      },
+    ])
+  })
+
+  it('does not rename an existing widget when its addresses change', async () => {
+    const wrapper = mount(RouteForm, { props: { initial: existing } })
+    await wrapper.get('#route-destination').setValue('School')
+    expect(inputOf(wrapper, '#route-title').value).toBe('Commute')
+  })
+
+  it('says why it refuses an empty title', async () => {
+    const wrapper = mount(RouteForm, { props: { initial: existing } })
+    await wrapper.get('#route-title').setValue('  ')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Give the widget a title')
   })
 })

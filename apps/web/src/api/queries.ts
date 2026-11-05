@@ -8,6 +8,7 @@ export const keys = {
   dashboards: ['dashboards'] as const,
   dashboard: (id: string) => ['dashboard', id] as const,
   widgetData: (id: string) => ['widget-data', id] as const,
+  widgetTypes: ['widget-types'] as const,
 }
 
 /** How often widget data is re-read from the server. The server itself refreshes feeds on its own schedule. */
@@ -34,6 +35,17 @@ export function useWidgetDataQuery(id: MaybeRefOrGetter<string>) {
     queryKey: computed(() => keys.widgetData(toValue(id))),
     queryFn: () => unwrap(api.widgets[':id'].data.$get({ param: { id: toValue(id) } })),
     refetchInterval: WIDGET_POLL_MS,
+  })
+}
+
+/** Which widget types this server can create, for example the route widget needs a Google Maps key. */
+export function useWidgetTypesQuery(enabled: MaybeRefOrGetter<boolean> = true) {
+  return useQuery({
+    queryKey: keys.widgetTypes,
+    queryFn: async () => (await unwrap(api['widget-types'].$get())).types,
+    enabled,
+    // The answer only changes when the server's settings do.
+    staleTime: Infinity,
   })
 }
 

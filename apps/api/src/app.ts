@@ -19,7 +19,7 @@ export function createApp(deps: AppDeps) {
     .route('/geocode', geocodeRoutes(deps))
     .route('/items', itemRoutes(deps))
     .route('/sources', sourceRoutes(deps))
-    .route('/widget-types', widgetTypeRoutes())
+    .route('/widget-types', widgetTypeRoutes(deps))
 
   const app = new Hono<Env>()
     .use('*', secureHeaders())

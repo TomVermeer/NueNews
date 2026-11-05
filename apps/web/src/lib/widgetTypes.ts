@@ -1,4 +1,4 @@
-import { CloudSun, Rss, Youtube } from 'lucide-vue-next'
+import { CloudSun, Route, Rss, Youtube } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import type { WidgetType } from '@nuenews/shared'
 
@@ -10,7 +10,12 @@ export interface WidgetTypeInfo {
 }
 
 /** The widget types that can be added today (RoyalRoad is not available yet). */
-export const ADDABLE_WIDGET_TYPES = ['feed', 'youtube', 'weather'] as const satisfies WidgetType[]
+export const ADDABLE_WIDGET_TYPES = [
+  'feed',
+  'youtube',
+  'weather',
+  'route',
+] as const satisfies WidgetType[]
 export type AddableWidgetType = (typeof ADDABLE_WIDGET_TYPES)[number]
 
 export const WIDGET_TYPE_INFO: Record<AddableWidgetType, WidgetTypeInfo> = {
@@ -31,6 +36,12 @@ export const WIDGET_TYPE_INFO: Record<AddableWidgetType, WidgetTypeInfo> = {
     description: 'Current conditions and a five day forecast',
     icon: CloudSun,
     defaultTitle: 'Weather',
+  },
+  route: {
+    label: 'Route',
+    description: 'The best route between two places on a Google map, with time and distance',
+    icon: Route,
+    defaultTitle: 'Route',
   },
 }
 

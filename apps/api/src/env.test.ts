@@ -47,6 +47,15 @@ describe('readEnv', () => {
     })
   })
 
+  it('reads the Google Maps key', () => {
+    expect(readEnv({ GOOGLE_MAPS_EMBED_KEY: 'maps-key' }).googleMapsEmbedKey).toBe('maps-key')
+  })
+
+  it('treats a missing or blank Google Maps key as not set', () => {
+    expect(readEnv({}).googleMapsEmbedKey).toBeUndefined()
+    expect(readEnv({ GOOGLE_MAPS_EMBED_KEY: '  ' }).googleMapsEmbedKey).toBeUndefined()
+  })
+
   it('ignores settings it does not know', () => {
     const environment: Record<string, string> = { PATH: '/usr/bin', HOME: '/home/user' }
     expect(readEnv(environment)).toEqual(readEnv({}))
