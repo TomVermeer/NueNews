@@ -201,3 +201,95 @@ describe('AddWidgetPanel (editing)', () => {
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 })
+
+describe('AddWidgetPanel (route widget)', () => {
+  const widgetTypes = (available: boolean) => ({
+    body: {
+      types: [
+        { type: 'feed', available: true },
+        { type: 'route', available },
+      ],
+    },
+  })
+
+  it('offers the route widget when the server has a Google Maps key', async () => {
+    fakeApi.on('GET widget-types', widgetTypes(true))
+    const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
+    await flushPromises()
+
+    const option = getButton(wrapper, 'Route')
+    expect(option.attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).not.toContain('Google Maps key')
+  })
+
+  it('shows the route widget as unavailable and says why when the server has no key', async () => {
+    fakeApi.on('GET widget-types', widgetTypes(false))
+    const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
+    await flushPromises()
+
+    expect(getButton(wrapper, 'Route').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('Needs a Google Maps key on the server')
+  })
+
+  it('does not offer the route widget while it is not known whether it is available', async () => {
+    fakeApi.on('GET widget-types', () => new Promise(() => {}))
+    const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Feed list')
+    expect(wrapper.text()).not.toContain('Route')
+  })
+
+  it('creates a route widget on the dashboard', async () => {
+    fakeApi.on('GET widget-types', widgetTypes(true))
+    fakeApi.on('POST dashboards/:id/widgets', { status: 201, body: widget('new') })
+    const { wrapper } = await mountApp(AddWidgetPanel, { props: { dashboardId: 'd1' } })
+    await flushPromises()
+
+    await getButton(wrapper, 'Route').trigger('click')
+    expect(wrapper.get('h2').text()).toBe('Route')
+    await wrapper.get('#route-origin').setValue('Amsterdam Centraal')
+    await wrapper.get('#route-destination').setValue('Utrecht Centraal')
+    await getButton(wrapper, 'Add widget').trigger('click')
+    await flushPromises()
+
+    const [call] = fakeApi.callsTo('POST dashboards/:id/widgets')
+    expect(call!.args.json).toEqual({
+      type: 'route',
+      title: 'Amsterdam Centraal → Utrecht Centraal',
+      config: {
+        origin: 'Amsterdam Centraal',
+        destination: 'Utrecht Centraal',
+        mode: 'driving',
+        reversed: false,
+      },
+      color: undefined,
+    })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('edits an existing route widget without asking the server what is available', async () => {
+    const existing = widget('r1', {
+      type: 'route',
+      title: 'Commute',
+      config: { origin: 'Home', destination: 'Work', mode: 'walking', reversed: false },
+    })
+    fakeApi.on('PATCH widgets/:id', { body: existing })
+    const { wrapper } = await mountApp(AddWidgetPanel, {
+      props: { dashboardId: 'd1', widget: existing },
+    })
+
+    expect(inputOf(wrapper, '#route-origin').value).toBe('Home')
+    expect(fakeApi.callsTo('GET widget-types')).toHaveLength(0)
+    await wrapper.get('#route-destination').setValue('School')
+    await getButton(wrapper, 'Save changes').trigger('click')
+    await flushPromises()
+
+    const [call] = fakeApi.callsTo('PATCH widgets/:id')
+    expect(call!.args.json).toMatchObject({
+      title: 'Commute',
+      config: { origin: 'Home', destination: 'School', mode: 'walking', reversed: false },
+    })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+})

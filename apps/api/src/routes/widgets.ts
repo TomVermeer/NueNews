@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
 import {
+  routeConfigSchema,
   updateWidgetSchema,
   WEATHER_ATTRIBUTION,
   weatherConfigSchema,
@@ -9,9 +10,14 @@ import {
 import type { AppDeps, Env } from '../context'
 import type { Db } from '../db/client'
 import { itemState, items, sources, widgetSources, widgets } from '../db/schema'
-import { ApiError, validate } from '../http'
+import { validate } from '../http'
 import { refreshSourcesNow } from '../services/refreshNow'
-import { requireWidget, sourceLabels, type WidgetRow } from '../services/widgetSources'
+import {
+  requireWidget,
+  sourceLabels,
+  unavailableWidgetError,
+  type WidgetRow,
+} from '../services/widgetSources'
 import { updateWidget } from '../services/widgets'
 import { getWeather } from '../weather/service'
 
@@ -47,6 +53,26 @@ async function weatherData(deps: AppDeps, widget: WidgetRow) {
     fetchedAt,
     stale,
     attribution: WEATHER_ATTRIBUTION,
+  }
+}
+
+/**
+ * What the browser needs to show the map: Google draws the route, so nothing is fetched here.
+ * The Embed API key is meant to be public; Google restricts it to the owner's web addresses.
+ */
+function routeData(deps: AppDeps, widget: WidgetRow) {
+  const embedKey = deps.googleMapsEmbedKey
+  if (!embedKey) throw unavailableWidgetError('route')
+
+  const { origin, destination, mode, reversed, autoSwapAt } = routeConfigSchema.parse(widget.config)
+  return {
+    widget: widgetSummary(widget),
+    origin,
+    destination,
+    mode,
+    reversed,
+    autoSwapAt,
+    embedKey,
   }
 }
 
@@ -120,11 +146,7 @@ function toSourceDto(source: SourceRow, labels: Labels) {
 
 async function feedData(deps: AppDeps, userId: string, widget: WidgetRow) {
   if (widget.type !== 'feed' && widget.type !== 'youtube') {
-    throw new ApiError(
-      422,
-      'widget_type_unavailable',
-      `The "${widget.type}" widget is not available yet`,
-    )
+    throw unavailableWidgetError(widget.type)
   }
 
   const { db } = deps
@@ -168,6 +190,7 @@ export function widgetRoutes(deps: AppDeps) {
       const userId = c.get('userId')
       const widget = await requireWidget(db, userId, c.req.param('id'))
       if (widget.type === 'weather') return c.json(await weatherData(deps, widget))
+      if (widget.type === 'route') return c.json(routeData(deps, widget))
       return c.json(await feedData(deps, userId, widget))
     })
 

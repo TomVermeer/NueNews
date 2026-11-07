@@ -42,6 +42,7 @@ describe('GET /api/v1/widget-types', () => {
     const body = await res.json()
     expect(body.types.map((t) => t.type).sort()).toEqual([
       'feed',
+      'route',
       'royalroad',
       'weather',
       'youtube',
@@ -52,6 +53,17 @@ describe('GET /api/v1/widget-types', () => {
     const royalroad = body.types.find((t) => t.type === 'royalroad')
     expect(royalroad).toBeDefined()
     expect(royalroad?.available).toBe(false)
+  })
+
+  it('offers the route widget only when the server has a Google Maps key', async () => {
+    const availability = async (overrides: Parameters<typeof createTestApp>[1]) => {
+      const { client } = await createTestApp({}, overrides)
+      const body = await (await client['widget-types'].$get()).json()
+      return body.types.find((t) => t.type === 'route')?.available
+    }
+
+    expect(await availability({})).toBe(false)
+    expect(await availability({ googleMapsEmbedKey: 'test-key' })).toBe(true)
   })
 })
 

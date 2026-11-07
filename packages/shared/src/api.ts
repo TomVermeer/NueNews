@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   feedConfigSchema,
   royalroadConfigSchema,
+  routeConfigSchema,
   weatherConfigSchema,
   youtubeConfigSchema,
 } from './widgets'
@@ -54,6 +55,7 @@ export const createWidgetSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('royalroad'), config: royalroadConfigSchema, ...widgetBase }),
   z.object({ type: z.literal('youtube'), config: youtubeConfigSchema, ...widgetBase }),
   z.object({ type: z.literal('weather'), config: weatherConfigSchema, ...widgetBase }),
+  z.object({ type: z.literal('route'), config: routeConfigSchema, ...widgetBase }),
 ])
 export type CreateWidget = z.infer<typeof createWidgetSchema>
 

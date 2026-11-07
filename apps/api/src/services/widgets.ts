@@ -12,12 +12,13 @@ import { widgets } from '../db/schema'
 import { ApiError, formatIssues } from '../http'
 import { refreshSourcesNow } from './refreshNow'
 import {
-  AVAILABLE_WIDGET_TYPES,
+  availableWidgetTypes,
   DEFAULT_SIZE,
   linkWidgetSources,
   nextFreeY,
   sourceRefsFor,
   toWidgetDto,
+  unavailableWidgetError,
   type WidgetDto,
   type WidgetRow,
 } from './widgetSources'
@@ -34,13 +35,7 @@ export async function createWidget(
   dashboardId: string,
   input: CreateWidget,
 ): Promise<WidgetDto> {
-  if (!AVAILABLE_WIDGET_TYPES.includes(input.type)) {
-    throw new ApiError(
-      422,
-      'widget_type_unavailable',
-      `The "${input.type}" widget is not available yet`,
-    )
-  }
+  if (!availableWidgetTypes(deps).includes(input.type)) throw unavailableWidgetError(input.type)
 
   const { db } = deps
   const refs = sourceRefsFor(input.type, input.config)

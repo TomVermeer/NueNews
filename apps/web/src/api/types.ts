@@ -14,7 +14,9 @@ export type ResolvedSource = InferResponseType<typeof api.sources.resolve.$post,
 type Has<T, K extends string> = T extends Record<K, unknown> ? T : never
 export type FeedData = Has<WidgetData, 'items'>
 export type WeatherData = Has<WidgetData, 'daily'>
+export type RouteData = Has<WidgetData, 'embedKey'>
 export type FeedItem = FeedData['items'][number]
 
 export const isFeedData = (data: WidgetData): data is FeedData => 'items' in data
 export const isWeatherData = (data: WidgetData): data is WeatherData => 'daily' in data
+export const isRouteData = (data: WidgetData): data is RouteData => 'embedKey' in data

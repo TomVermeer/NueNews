@@ -2,7 +2,7 @@
 
 A personal dashboard that pulls feeds from other sites (RSS/Atom, Reddit, YouTube, RoyalRoad, weather) into a customizable grid of widgets. The first version is for a single user, but the design keeps the door open for multiple users and shareable dashboards.
 
-Status: usable. You can create dashboards, add feed, YouTube and weather widgets, arrange them by dragging and resizing, and read items that always link out to their source. RoyalRoad is not built yet. The architecture is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Status: usable. You can create dashboards, add feed, YouTube, weather and route widgets, arrange them by dragging and resizing, and read items that always link out to their source. RoyalRoad is not built yet. The architecture is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## How to run
 
@@ -40,11 +40,14 @@ Other commands, run from the repo root:
 
 The API reads these environment variables (all optional):
 
-| Variable       | Default                            | Purpose                                                                                   |
-| -------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
-| `PORT`         | `3000`                             | API port                                                                                  |
-| `DATABASE_URL` | unset                              | `postgres://…` for a real server; unset uses a local PGlite folder `apps/api/data/pglite` |
-| `USER_AGENT`   | `NueNews/0.1 (personal dashboard)` | Sent with every feed request. Put a contact URL in it if you host this publicly.          |
+| Variable                | Default                            | Purpose                                                                                   |
+| ----------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `PORT`                  | `3000`                             | API port                                                                                  |
+| `DATABASE_URL`          | unset                              | `postgres://…` for a real server; unset uses a local PGlite folder `apps/api/data/pglite` |
+| `USER_AGENT`            | `NueNews/0.1 (personal dashboard)` | Sent with every feed request. Put a contact URL in it if you host this publicly.          |
+| `GOOGLE_MAPS_EMBED_KEY` | unset                              | A Maps Embed API key (free). Without it the route widget is not offered. See below.       |
+
+The route widget shows Google Maps through the [Maps Embed API](https://developers.google.com/maps/documentation/embed/get-started). Create a key in Google Cloud (the project needs a billing account, but the Embed API itself is free), enable only the Maps Embed API, and restrict the key to your own web addresses (HTTP referrers, for example `http://localhost:5273/*` in development). The key reaches the browser by design, so the restriction is what protects it.
 
 ## API
 
@@ -66,7 +69,7 @@ Everything lives under `/api/v1`. Errors always look like `{ "error": { "code": 
 | `POST /items/state`                               | Mark items `seen`, `read` or `unread`                                                            |
 | `POST /sources/resolve`                           | Turn what a user typed into a canonical source (feed autodiscovery, Reddit pages to their feed)  |
 
-Available widget types: `feed`, `youtube` and `weather`. Not built yet: the `royalroad` widget (rejected with `widget_type_unavailable`) and import/export.
+Available widget types: `feed`, `youtube`, `weather` and `route` (the last only with `GOOGLE_MAPS_EMBED_KEY` set). Not built yet: the `royalroad` widget (rejected with `widget_type_unavailable`) and import/export.
 
 ## Scheduler
 
@@ -78,8 +81,9 @@ Vue 3 single page app in [apps/web](apps/web). The dashboard is a 12 column grid
 
 - **Tabs** in the top bar are dashboards (`/d/:id` in the address bar). The `+` creates one; rename and delete appear in edit mode.
 - **Edit layout** turns on dragging (by the grip), resizing (bottom-right corner), per-widget settings and removal. Changes stay in a draft until **Save layout**, which sends everything in one request; **Cancel** throws the draft away. Widgets you add or reconfigure through the panel are saved immediately.
-- **Add widget** opens a side panel. Feed and YouTube addresses must be looked up first (the API canonicalizes them and finds feeds on web pages, so what is stored is always a working feed URL or channel ID). Weather uses a city search.
-- **Reading.** Titles, thumbnails and videos are plain links that open the original page in a new tab (`rel="noopener noreferrer"`); thumbnails are hotlinked without a referrer; nothing is embedded. Opening an item marks it read immediately, and optional unread dots show it.
+- **Add widget** opens a side panel. Feed and YouTube addresses must be looked up first (the API canonicalizes them and finds feeds on web pages, so what is stored is always a working feed URL or channel ID). Weather uses a city search. Route takes two addresses or place names as plain text (Google resolves them) and a travel mode.
+- **Reading.** Titles, thumbnails and videos are plain links that open the original page in a new tab (`rel="noopener noreferrer"`); thumbnails are hotlinked without a referrer; nothing is embedded, except the route widget's Google map.
+- **Route widget.** The swap button flips start and destination and saves that. An optional time of day (say 12:00) flips the direction automatically from then until midnight, for a commute that goes there in the morning and back in the afternoon; with it on, the button flips only until the next switch and saves nothing. Opening an item marks it read immediately, and optional unread dots show it.
 - **Data flow.** TanStack Query fetches and caches (widget data is re-read every 5 minutes, and the server refreshes feeds on its own schedule). Pinia holds only UI state (edit mode, which panel is open). Edit-mode drafts live in a small composable, [useLayoutDraft](apps/web/src/composables/useLayoutDraft.ts).
 - **Types** for every API response are inferred from the API routes ([api/types.ts](apps/web/src/api/types.ts)), so changing a route is a compile error in the UI.
 
@@ -118,7 +122,7 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 
 **The app is separate from the server.** [app.ts](apps/api/src/app.ts) builds and exports the Hono app, and [index.ts](apps/api/src/index.ts) only starts the HTTP server. Tests call `app.request()` directly with no port and no network.
 
-**The browser never talks to third-party sites.** The backend will fetch, normalize and cache every feed in PostgreSQL. This avoids CORS problems, keeps API keys off the client, and lets one fetch serve every widget (and later every user). In development, Vite proxies `/api` to the API on port 3000, so the web app uses same-origin paths.
+**The browser never talks to third-party sites** (apart from the route widget's embedded Google map, see below). The backend will fetch, normalize and cache every feed in PostgreSQL. This avoids CORS problems, keeps API keys off the client, and lets one fetch serve every widget (and later every user). In development, Vite proxies `/api` to the API on port 3000, so the web app uses same-origin paths.
 
 **Providers and widgets are plugins.**
 
@@ -126,7 +130,7 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 - A _widget type_ (shared schema plus a Vue component) defines a config shape ([widgets.ts](packages/shared/src/widgets.ts)) and how to render it.
 - Adding an integration should mean adding one provider file and one widget, with no changes to the core.
 
-**Widget config is validated data.** Each widget type has a Zod schema with defaults (`feed`, `royalroad`, `youtube`, `weather`). The same schemas will validate API input, drive the settings forms, and make dashboards exportable as JSON.
+**Widget config is validated data.** Each widget type has a Zod schema with defaults (`feed`, `royalroad`, `youtube`, `weather`, `route`). The same schemas will validate API input, drive the settings forms, and make dashboards exportable as JSON.
 
 **Ready for multiple users, without building them yet.** Version 1 has no login and runs as one seeded local user, but every user-owned table carries a `user_id` from the start, so adding real authentication later will not need a data migration. Shared data (sources, cached items) has no `user_id`, so one fetch serves everyone.
 
@@ -137,6 +141,8 @@ It is a pnpm workspace monorepo ([pnpm-workspace.yaml](pnpm-workspace.yaml)). Pa
 **YouTube.** Channel feeds (`videos.xml?channel_id=...`) need no API key. A channel is stored by its channel ID, so `@handles` are looked up once through `/sources/resolve` (from the channel page's canonical link) and saving a widget never touches the network for them. If YouTube shows a cookie-consent page instead of the channel (common from EU addresses), the lookup fails with an explanation, and pasting a `/channel/UC...` address works instead. Videos link out to YouTube; nothing is embedded.
 
 **Weather.** [MET Norway](https://api.met.no/) Locationforecast (no key, identifying `User-Agent` required; place search uses Open-Meteo's geocoding). Current conditions and five days, cached for 30 minutes per location rounded to about a kilometre. If the service fails, the last cached answer is returned with `stale: true`. The response carries the credit line MET Norway's licence (CC BY 4.0) asks for, and the UI must show it, linked. Days follow local solar time, because the answer has no timezone.
+
+**Route.** The one widget where the browser talks to a third party: it embeds the Google Maps Embed API (directions mode) in an iframe, so Google draws the interactive map, the best route, time, distance and traffic, and for public transport too. The server stores two free-text addresses and a mode, and hands the browser the key from `GOOGLE_MAPS_EMBED_KEY` with the widget's data. There is no routing backend and no cache. The pages are served with `Referrer-Policy: no-referrer`, so the iframe sets its own referrer policy, otherwise Google's referrer restriction on the key rejects it.
 
 **Safe HTTP client.** Everything that fetches user-supplied URLs goes through [apps/api/src/lib/http.ts](apps/api/src/lib/http.ts) and [ssrf.ts](apps/api/src/lib/ssrf.ts): only http(s), no credentials, private/local/link-local addresses are blocked (IPv4, IPv6 and IPv4-in-IPv6), redirects are followed by hand and re-checked at every hop, and a connection-time DNS guard stops DNS rebinding. Responses are capped at 2 MB and 10 seconds. Checked live: public feeds load, while `localhost`, `169.254.169.254` and `localtest.me` (a public name that resolves to 127.0.0.1) are refused.
 

@@ -3,13 +3,14 @@ import { ArrowLeft, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import {
   feedConfigSchema,
+  routeConfigSchema,
   weatherConfigSchema,
   youtubeConfigSchema,
   type CreateWidget,
   type WidgetColor,
 } from '@nuenews/shared'
 import { ApiRequestError } from '../api/client'
-import { useWidgetMutations } from '../api/queries'
+import { useWidgetMutations, useWidgetTypesQuery } from '../api/queries'
 import type { WidgetDto } from '../api/types'
 import {
   ADDABLE_WIDGET_TYPES,
@@ -19,6 +20,7 @@ import {
 } from '../lib/widgetTypes'
 import ColorPicker from './ColorPicker.vue'
 import FeedForm from './forms/FeedForm.vue'
+import RouteForm from './forms/RouteForm.vue'
 import WeatherForm from './forms/WeatherForm.vue'
 import YouTubeForm from './forms/YouTubeForm.vue'
 import ErrorMessage from './ErrorMessage.vue'
@@ -41,6 +43,23 @@ const type = computed<AddableWidgetType | null>(() =>
   props.widget && isAddableWidgetType(props.widget.type) ? props.widget.type : picked.value,
 )
 const saving = computed(() => mutations.create.isPending.value || mutations.update.isPending.value)
+
+const serverTypes = useWidgetTypesQuery(() => !props.widget)
+
+interface TypeOption {
+  type: AddableWidgetType
+  /** The server cannot create this type, e.g. it has no Google Maps key. */
+  unavailable: boolean
+}
+
+/** The route widget is listed once the server has said whether it can create one. */
+const typeOptions = computed<TypeOption[]>(() =>
+  ADDABLE_WIDGET_TYPES.flatMap((option): TypeOption[] => {
+    if (option !== 'route') return [{ type: option, unavailable: false }]
+    const known = serverTypes.data.value?.find((entry) => entry.type === option)
+    return known ? [{ type: option, unavailable: !known.available }] : []
+  }),
+)
 
 const heading = computed(() => {
   if (props.widget) return 'Widget settings'
@@ -115,21 +134,24 @@ async function save(widget: CreateWidget) {
 
     <div class="flex-1 overflow-y-auto px-6 py-6">
       <ul v-if="!type" class="space-y-2">
-        <li v-for="option in ADDABLE_WIDGET_TYPES" :key="option">
+        <li v-for="option in typeOptions" :key="option.type">
           <button
             type="button"
-            class="flex w-full items-center gap-3 rounded-lg border border-line px-3 py-3 text-left transition-colors hover:bg-card-high"
-            @click="picked = option"
+            class="flex w-full items-center gap-3 rounded-lg border border-line px-3 py-3 text-left transition-colors enabled:hover:bg-card-high disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="option.unavailable"
+            @click="picked = option.type"
           >
             <component
-              :is="WIDGET_TYPE_INFO[option].icon"
+              :is="WIDGET_TYPE_INFO[option.type].icon"
               class="size-5 shrink-0 text-ink-muted"
               aria-hidden="true"
             />
             <span>
-              <span class="block text-sm">{{ WIDGET_TYPE_INFO[option].label }}</span>
+              <span class="block text-sm">{{ WIDGET_TYPE_INFO[option.type].label }}</span>
               <span class="block text-xs text-ink-muted">{{
-                WIDGET_TYPE_INFO[option].description
+                option.unavailable
+                  ? 'Needs a Google Maps key on the server'
+                  : WIDGET_TYPE_INFO[option.type].description
               }}</span>
             </span>
           </button>
@@ -150,10 +172,16 @@ async function save(widget: CreateWidget) {
           @submit="(value) => save({ type: 'youtube', ...value })"
         />
         <WeatherForm
-          v-else
+          v-else-if="type === 'weather'"
           ref="form"
           :initial="initialWith(weatherConfigSchema)"
           @submit="(value) => save({ type: 'weather', ...value })"
+        />
+        <RouteForm
+          v-else
+          ref="form"
+          :initial="initialWith(routeConfigSchema)"
+          @submit="(value) => save({ type: 'route', ...value })"
         />
         <fieldset class="mt-6">
           <legend class="field-label">Color</legend>

@@ -10,6 +10,8 @@ export interface Env {
   readonly SUPABASE_URL?: string
   /** Only for legacy Supabase projects that sign tokens with a shared secret. */
   readonly SUPABASE_JWT_SECRET?: string
+  /** A Maps Embed API key. Without it the route widget is not offered. */
+  readonly GOOGLE_MAPS_EMBED_KEY?: string
 }
 
 /** The settings that choose how requests are authenticated (see `auth/config.ts`). */
@@ -22,6 +24,7 @@ export interface Settings {
   readonly userAgent: string
   readonly production: boolean
   readonly cronSecret?: string
+  readonly googleMapsEmbedKey?: string
   readonly auth: AuthEnv
 }
 
@@ -37,6 +40,8 @@ export function readEnv(source: Env): Settings {
     userAgent: source.USER_AGENT ?? DEFAULT_USER_AGENT,
     production: source.NODE_ENV === 'production',
     cronSecret: source.CRON_SECRET,
+    // A blank value in .env (`GOOGLE_MAPS_EMBED_KEY=`) means "not set".
+    googleMapsEmbedKey: source.GOOGLE_MAPS_EMBED_KEY?.trim() || undefined,
     auth: {
       NODE_ENV: source.NODE_ENV,
       SUPABASE_URL: source.SUPABASE_URL,
