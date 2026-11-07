@@ -27,6 +27,7 @@ defineEmits<{
     class="flex size-full min-h-0 flex-col rounded-xl border bg-(--widget-bg)"
     :class="editing ? 'border-dashed border-accent-muted' : 'border-(--widget-line)'"
     :data-widget-color="color ?? undefined"
+    :data-editing="editing || undefined"
     :aria-label="title"
   >
     <header class="flex shrink-0 items-center gap-2 px-4 pt-3 pb-2">

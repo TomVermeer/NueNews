@@ -1,7 +1,7 @@
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi } from '../test/fakeApi'
-import { feedData, feedItem, weatherData, widget } from '../test/factories'
+import { feedData, feedItem, routeData, weatherData, widget } from '../test/factories'
 import { mountApp } from '../test/mount'
 import WidgetBody from './WidgetBody.vue'
 
@@ -35,6 +35,15 @@ describe('WidgetBody', () => {
     })
     await flushPromises()
     expect(wrapper.get('[data-testid="temperature"]').text()).toBe('11°')
+  })
+
+  it('renders route widgets with the map', async () => {
+    fakeApi.on('GET widgets/:id/data', { body: routeData() })
+    const { wrapper } = await mountApp(WidgetBody, {
+      props: { widget: widget('r1', { type: 'route', config: {} }) },
+    })
+    await flushPromises()
+    expect(wrapper.get('iframe').attributes('src')).toContain('google.com/maps/embed/v1/directions')
   })
 
   it('renders YouTube widgets as a thumbnail grid', async () => {

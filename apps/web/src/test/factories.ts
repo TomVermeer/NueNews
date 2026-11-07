@@ -1,4 +1,4 @@
-import type { FeedData, FeedItem, WeatherData, WidgetDto } from '../api/types'
+import type { FeedData, FeedItem, RouteData, WeatherData, WidgetDto } from '../api/types'
 
 export function feedItem(n: number, overrides: Partial<FeedItem> = {}): FeedItem {
   return {
@@ -53,6 +53,19 @@ export function weatherData(overrides: Partial<WeatherData> = {}): WeatherData {
     fetchedAt: '2026-02-01T10:00:00.000Z',
     stale: false,
     attribution: 'Data from MET Norway',
+    ...overrides,
+  }
+}
+
+export function routeData(overrides: Partial<RouteData> = {}): RouteData {
+  return {
+    widget: { id: 'r1', type: 'route', title: 'Commute' },
+    origin: 'Amsterdam Centraal',
+    destination: 'Utrecht Centraal',
+    mode: 'transit',
+    reversed: false,
+    autoSwapAt: undefined,
+    embedKey: 'test-key',
     ...overrides,
   }
 }

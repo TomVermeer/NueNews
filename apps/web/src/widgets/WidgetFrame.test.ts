@@ -17,6 +17,11 @@ describe('WidgetFrame', () => {
     expect(wrapper.text()).toContain('Body content')
   })
 
+  it('marks the card while it is being edited, so embedded maps stop catching the mouse', () => {
+    expect(render({ editing: false }).get('section').attributes('data-editing')).toBeUndefined()
+    expect(render({ editing: true }).get('section').attributes('data-editing')).toBeDefined()
+  })
+
   it('tints the card with its color, and only offers the picker while editing', async () => {
     const plain = mount(WidgetFrame, {
       props: { title: 'News', icon: Rss, editing: false },

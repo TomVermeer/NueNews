@@ -3,8 +3,9 @@ import { TriangleAlert } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { ApiRequestError } from '../api/client'
 import { useItemStateMutation, useWidgetDataQuery } from '../api/queries'
-import { isFeedData, isWeatherData, type FeedItem, type WidgetDto } from '../api/types'
+import { isFeedData, isRouteData, isWeatherData, type FeedItem, type WidgetDto } from '../api/types'
 import FeedWidget from './FeedWidget.vue'
+import RouteWidget from './RouteWidget.vue'
 import WeatherWidget from './WeatherWidget.vue'
 import YouTubeWidget from './YouTubeWidget.vue'
 
@@ -51,6 +52,11 @@ function markRead(item: FeedItem) {
 
   <template v-else-if="query.data.value">
     <WeatherWidget v-if="isWeatherData(query.data.value)" :data="query.data.value" />
+    <RouteWidget
+      v-else-if="isRouteData(query.data.value)"
+      :data="query.data.value"
+      :dashboard-id="widget.dashboardId"
+    />
     <YouTubeWidget
       v-else-if="widget.type === 'youtube' && isFeedData(query.data.value)"
       :data="query.data.value"
