@@ -1,6 +1,6 @@
 # Architecture
 
-NueNews is a personal dashboard: a grid of widgets (feed lists, YouTube channels, weather) filled from third-party sites. A server fetches and caches the data; browsers only talk to the NueNews API. It is built so that more than one user can be added: every user-owned record is scoped to a user, and every query is filtered by the current user.
+NueNews is a personal dashboard: a grid of widgets (feed lists, YouTube channels, weather, routes) filled from third-party sites. A server fetches and caches the data; browsers only talk to the NueNews API, except that the route widget embeds a Google map. It is built so that more than one user can be added: every user-owned record is scoped to a user, and every query is filtered by the current user.
 
 ```text
 Browser
@@ -70,6 +70,7 @@ Headline and handoff: NueNews shows what the publisher's feed provides and links
 - Thumbnails are hotlinked with `referrerpolicy="no-referrer"`. Image URLs must be http or https.
 - One exception: the avatar of a YouTube channel. The provider's optional `fetchIcon` reads the `og:image` of the channel page once and stores it in `sources.favicon_url`.
 - The weather widget shows "Data from MET Norway" (text in [weather.ts](../packages/shared/src/weather.ts)).
+- One more exception: the route widget embeds Google's Maps Embed API in an iframe (see Route below). The widget also links to the same route on google.com/maps in a new tab with `rel="noopener noreferrer"`.
 - The UI is dark mode only.
 
 ## Data pipeline
@@ -119,6 +120,16 @@ Weather has no source row.
 - Results are cached for 30 minutes in `weather_cache`, keyed by latitude and longitude rounded to 2 decimals, and units ([service.ts](../apps/api/src/weather/service.ts)).
 - Place search uses Open-Meteo geocoding through `GET /geocode?q=` (2 to 100 characters).
 
+### Route
+
+Route has no source row and no cache. The server never contacts Google for it.
+
+- The config ([widgets.ts](../packages/shared/src/widgets.ts)) holds `origin` and `destination` as free text (Google resolves them), `mode` (`driving`, `bicycling`, `walking`, `transit`), `reversed`, and an optional `autoSwapAt` (HH:MM).
+- The widget is available only when `GOOGLE_MAPS_EMBED_KEY` is set. Otherwise creating one, and reading the data of an existing one, answer `widget_type_unavailable`, and `GET /widget-types` marks it unavailable.
+- `GET /widgets/:id/data` returns the addresses, mode, `reversed`, `autoSwapAt` and `embedKey` ([widgets.ts](../apps/api/src/routes/widgets.ts)). The key is public by design and is restricted in Google Cloud to the owner's web addresses and to the Maps Embed API. It is read at runtime, never baked into the web build, because the image is public.
+- The browser builds the iframe address ([routeUrls.ts](../apps/web/src/lib/routeUrls.ts)). The iframe sets `referrerpolicy="strict-origin-when-cross-origin"`, because the API answers every page with `Referrer-Policy: no-referrer` and Google's key check needs the page address. In edit mode the iframe ignores the mouse, so drags in the grid are not lost over the map.
+- The swap button saves the flipped `reversed` flag with `PATCH /widgets/:id`. With `autoSwapAt` set, the direction is the saved one before that time and the reverse from then until midnight, taken from the browser's clock ([useRouteDirection.ts](../apps/web/src/composables/useRouteDirection.ts)); the button then flips only until the next switch and saves nothing.
+
 ## Outbound request safety
 
 All outbound requests go through [http.ts](../apps/api/src/lib/http.ts) and [ssrf.ts](../apps/api/src/lib/ssrf.ts). Do not call `fetch` directly for user-supplied or feed-supplied URLs.
@@ -147,7 +158,7 @@ PostgreSQL through Drizzle. Schema: [schema.ts](../apps/api/src/db/schema.ts). I
 
 Widget configs ([widgets.ts](../packages/shared/src/widgets.ts)):
 
-- `feed`, `youtube` (with an optional label) and `weather` are available.
+- `feed`, `youtube` (with an optional label), `weather` and `route` (only with a Google Maps key) are available.
 - `royalroad` exists in the schemas. The API rejects it with `widget_type_unavailable`.
 
 Database access is asynchronous. `createDb` ([client.ts](../apps/api/src/db/client.ts)) returns `{ db, close }`. A `postgres://` URL gives a node-postgres pool (max 5). Anything else gives PGlite: a folder in development, memory in tests.
@@ -169,7 +180,7 @@ Hono, prefix `/api/v1`. Code in [routes/](../apps/api/src/routes).
 | POST   | `/dashboards/:id/widgets` | Add a widget                                            |
 | PATCH  | `/widgets/:id`            | Change title, config or color                           |
 | DELETE | `/widgets/:id`            | Delete a widget                                         |
-| GET    | `/widgets/:id/data`       | Cached items (or weather) for a widget                  |
+| GET    | `/widgets/:id/data`       | Cached items, weather or route data for a widget        |
 | POST   | `/widgets/:id/refresh`    | Fetch the widget's sources now                          |
 | POST   | `/items/state`            | Set item ids to `seen`, `read` or `unread`              |
 | POST   | `/sources/resolve`        | Turn a pasted address into a canonical source           |
@@ -268,7 +279,7 @@ The server needs no source code. It needs only [compose.yaml](../deploy/compose.
 
 - One service, `nuenews`, with image `${NUENEWS_IMAGE:-ghcr.io/<owner>/nuenews:latest}`.
 - `restart: unless-stopped`. External Docker network `web`, shared with Caddy. No published ports and no volumes.
-- Environment: `DATABASE_URL` and `SUPABASE_URL` (required), `SUPABASE_JWT_SECRET` and `USER_AGENT` (optional).
+- Environment: `DATABASE_URL` and `SUPABASE_URL` (required), `SUPABASE_JWT_SECRET`, `USER_AGENT` and `GOOGLE_MAPS_EMBED_KEY` (optional).
 - `CRON_SECRET` is not passed, so `/internal/tick` is off. The in-process scheduler refreshes all feeds.
 
 Automatic updates ([nuenews-update.timer](../deploy/nuenews-update.timer), [nuenews-update.service](../deploy/nuenews-update.service)):
@@ -317,6 +328,7 @@ Remove the `NUENEWS_IMAGE` line to follow `latest` again.
 | `SUPABASE_URL`                                | API                         | Production: yes                                     | Token issuer and JWKS base. Missing in production: the API refuses to start.        |
 | `SUPABASE_JWT_SECRET`                         | API                         | No                                                  | HS256 secret for legacy Supabase projects                                           |
 | `USER_AGENT`                                  | API                         | No                                                  | User-Agent for outbound requests                                                    |
+| `GOOGLE_MAPS_EMBED_KEY`                       | API                         | No                                                  | Maps Embed API key; without it the route widget is unavailable (not set on Render)  |
 | `PORT`                                        | API                         | No (3000)                                           | Listen port                                                                         |
 | `NODE_ENV`                                    | API                         | Set by the image                                    | `production` serves the web build and requires `SUPABASE_URL`                       |
 | `CRON_SECRET`                                 | API, `refresh.yml`          | No                                                  | Enables `POST /internal/tick` (used on Render only)                                 |

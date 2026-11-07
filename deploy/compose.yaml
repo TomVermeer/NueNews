@@ -21,6 +21,8 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
       USER_AGENT: ${USER_AGENT:-NueNews/0.1 (personal dashboard)}
+      # Empty means the route widget is switched off.
+      GOOGLE_MAPS_EMBED_KEY: ${GOOGLE_MAPS_EMBED_KEY:-}
     networks:
       - web
 
